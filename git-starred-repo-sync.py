@@ -67,7 +67,7 @@ def pull():
     os.system('cd ' + repo + '; ' + 'pwd' + '; ' + 'git pull' + '; ' + 'cd ..')
 
 def remove():
-  print "[!] Not currently working! Prints only.
+  print "[!] Not currently working! Prints only."
   LOCAL = REMOTE = DATA = []
   LOCAL = get_repos_local()
   DATA = get_repos_remote()
