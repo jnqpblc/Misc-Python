@@ -50,6 +50,7 @@ def reclone():
   LOCAL = REMOTE = DATA = []
   LOCAL = get_repos_local()
   DATA = get_repos_remote()
+  print "[*] Found " + str(len(DATA)) + " repos on Github.com and " + str(len(LOCAL)) + " repos locally."
   for line in DATA:
     REPO = line.strip('\n').split('/')[4].replace('.git', '').lstrip('.')
     USER = line.strip('\n').split('/')[3]
