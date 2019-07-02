@@ -14,7 +14,7 @@ def get_repos_local():
 
 def get_repos_remote():
   URL = "https://api.github.com/users/jnqpblc/starred"
-  TOKEN = "84bdb26ddb5a3c1acc67ca70b45971fa674f006d"
+  TOKEN = ""
   TMP = []
   for num in range(0, 5):
     per_page = 100
