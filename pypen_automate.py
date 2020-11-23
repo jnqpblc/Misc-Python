@@ -1,23 +1,26 @@
 import sqlite3, os, sys
 if len(sys.argv) < 2:
   print '''
-  ,-.----.
-  \    /  \                         ___                            ___               ,---,                        ___                       ____                ___
-  |   :    \                      ,--.'|_                        ,--.'|_            '  .' \                     ,--.'|_                   ,'  , `.            ,--.'|_
-  |   |  .\ :             ,---,   |  | :,'                       |  | :,'          /  ;    '.             ,--,  |  | :,'   ,---.       ,-+-,.' _ |            |  | :,'
-  .   :  |: |         ,-+-. /  |  :  : ' :             .--.--.   :  : ' :         :  :       \          ,'_ /|  :  : ' :  '   ,'\   ,-+-. ;   , ||            :  : ' :
-  |   |   \ : ,---.  ,--.'|'   |.;__,'  /     ,---.   /  /    '.;__,'  /          :  |   /\   \    .--. |  | :.;__,'  /  /   /   | ,--.'|'   |  || ,--.--.  .;__,'  /     ,---. 
-  |   : .   //     \|   |  ,"' ||  |   |     /     \ |  :  /`./|  |   |           |  :  ' ;.   : ,'_ /| :  . ||  |   |  .   ; ,. :|   |  ,', |  |,/       \ |  |   |     /     \ 
-  ;   | |`-'/    /  |   | /  | |:__,'| :    /    /  ||  :  ;_  :__,'| :           |  |  ;/  \   \|  ' | |  . .:__,'| :  '   | |: :|   | /  | |--'.--.  .-. |:__,'| :    /    /  | 
-  |   | ;  .    ' / |   | |  | |  '  : |__ .    ' / | \  \    `. '  : |__         '  :  | \  \ ,'|  | ' |  | |  '  : |__'   | .; :|   : |  | ,    \__\/: . .  '  : |__ .    ' / | 
-  :   ' |  '   ;   /|   | |  |/   |  | '.'|'   ;   /|  `----.   \|  | '.'|        |  |  '  '--'  :  | : ;  ; |  |  | '.'|   :    ||   : |  |/     ," .--.; |  |  | '.'|'   ;   /| 
-  :   : :  '   |  / |   | |--'    ;  :    ;'   |  / | /  /`--'  /;  :    ;        |  :  :        '  :  `--'   \ ;  :    ;\   \  / |   | |`-'     /  /  ,.  |  ;  :    ;'   |  / | 
-  |   | :  |   :    |   |/        |  ,   / |   :    |'--'.     / |  ,   /         |  | ,'        :  ,      .-./ |  ,   /  `----'  |   ;/        ;  :   .'   \ |  ,   / |   :    | 
-  `---'.|   \   \  /'---'          ---`-'   \   \  /   `--'---'   ---`-'          `--''           `--`----'      ---`-'           '---'         |  ,     .-./  ---`-'   \   \  / 
-    `---`    `----'                          `----'                                                                                              `--`---'                `----' 
+                    ,-.----.
+                    \    /  \                                ,---,                        ___                       ____                ___ 
+,-.----.            |   :    \                              '  .' \                     ,--.'|_                   ,'  , `.            ,--.'|_ 
+\    /  \           |   |  .\ :             ,---,          /  ;    '.             ,--,  |  | :,'   ,---.       ,-+-,.' _ |            |  | :,' 
+|   :    |          .   :  |: |         ,-+-. /  |        :  :       \          ,'_ /|  :  : ' :  '   ,'\   ,-+-. ;   , ||            :  : ' : 
+|   | .\ :     .--, |   |   \ : ,---.  ,--.'|'   |        :  |   /\   \    .--. |  | :.;__,'  /  /   /   | ,--.'|'   |  || ,--.--.  .;__,'  /     ,---. 
+.   : |: |   /_ ./| |   : .   //     \|   |  ,"' |        |  :  ' ;.   : ,'_ /| :  . ||  |   |  .   ; ,. :|   |  ,', |  |,/       \ |  |   |     /     \ 
+|   |  \ :, ' , ' : ;   | |`-'/    /  |   | /  | |        |  |  ;/  \   \|  ' | |  . .:__,'| :  '   | |: :|   | /  | |--'.--.  .-. |:__,'| :    /    /  | 
+|   : .  /___/ \: | |   | ;  .    ' / |   | |  | |        '  :  | \  \ ,'|  | ' |  | |  '  : |__'   | .; :|   : |  | ,    \__\/: . .  '  : |__ .    ' / | 
+:     |`-'.  \  ' | :   ' |  '   ;   /|   | |  |/         |  |  '  '--'  :  | : ;  ; |  |  | '.'|   :    ||   : |  |/     ," .--.; |  |  | '.'|'   ;   /| 
+:   : :    \  ;   : :   : :  '   |  / |   | |--'          |  :  :        '  :  `--'   \ ;  :    ;\   \  / |   | |`-'     /  /  ,.  |  ;  :    ;'   |  / | 
+|   | :     \  \  ; |   | :  |   :    |   |/              |  | ,'        :  ,      .-./ |  ,   /  `----'  |   ;/        ;  :   .'   \ |  ,   / |   :    | 
+`---'.|      :  \  \`---'.|   \   \  /'---'               `--''           `--`----'      ---`-'           '---'         |  ,     .-./  ---`-'   \   \  / 
+  `---`       \  ' ;  `---`    `----'                                                                                    `--`---'                `----' 
+               `--`
   by jnqpblc
   '''
-  sys.exit('\nUsage: %s <option|print|nmapsvc {file_name}|vulnscan|brute>\n' % sys.argv[0])
+  sys.exit('\nUsage: %s <option|print|nmapsvc {file_name}|vulnscan|brute|iker {optional ip}|ikeforce {optional ip}>\n' % sys.argv[0])
+
+# apt-get install lua-sql-sqlite3
 
 directory_name = "output"
 sqlite_database_file = "scan.sqlite"
@@ -63,9 +66,9 @@ elif sys.argv[1] == "nmapsvc":
   if not os.path.exists("sqlite-output.nse"):
     os.system("wget --quiet https://raw.githubusercontent.com/exitnode/nmap-sqlite-output/master/sqlite-output.nse")
   print("\n\n[*] Running an nmapsvc version scan on all entries in %s" % (targets_file))
-  nmapsvc_tcp_cmd = "nmap -Pn -n -sSV -p- --version-intensity 3 --min-parallelism 32 -iL %s --min-rate 1000 --script sqlite-output --script-args dbname=%s,dbtable=scandata" % (targets_file, sqlite_database_file)
+  nmapsvc_tcp_cmd = "nmap -Pn -n -sSV -p- --version-intensity 3 --min-parallelism 32 -iL %s --min-rate 1000 --script sqlite-output --script-args dbname=%s,dbtable=scandata -oA %s/pya-nmap-tcp-output" % (targets_file, sqlite_database_file, directory_name)
   os.system(nmapsvc_tcp_cmd)
-  nmapsvc_udp_cmd = "nmap -Pn -n -sU --top-ports 30 --open --version-intensity 3 --min-parallelism 32 -iL %s --min-rate 1000 --script sqlite-output --script-args dbname=%s,dbtable=scandata" % (targets_file, sqlite_database_file)
+  nmapsvc_udp_cmd = "nmap -Pn -n -sU --top-ports 30 --open --version-intensity 3 --min-parallelism 32 -iL %s --min-rate 1000 --script sqlite-output --script-args dbname=%s,dbtable=scandata -oA %s/pya-nmap-udp-output" % (targets_file, sqlite_database_file, directory_name)
   os.system(nmapsvc_udp_cmd)
 
 elif sys.argv[1] == "vulnscan":
@@ -119,7 +122,7 @@ elif sys.argv[1] == "vulnscan":
     os.system(http_dirb_cmd)
 
   # All scans for encrypted webservers (SSL/TLS).
-  for row in c.execute("SELECT * FROM scandata WHERE protocol = 'tcp' AND (service LIKE '%https%' OR service LIKE '%ssl%'"):
+  for row in c.execute("SELECT * FROM scandata WHERE protocol = 'tcp' AND (service LIKE '%https%' OR service LIKE '%ssl%')"):
     host_address = row[1]
     service_port = row[2]
     service_proto = row[5]
@@ -239,6 +242,52 @@ elif sys.argv[1] == "brute-all":
     print("\n\n[*] Running nmap +brute on %s://%s:%s\n" % (service_proto, host_address, service_port))
     nmap_brute = "nmap -p %s --script brute --script-args userdb=unix_users.txt,passdb=unix_passwords.txt -oA %s/pya-nmap-brute-output-%s-%s-%s %s" % (service_port, directory_name, host_address, service_port, service_proto, host_address)
     os.system(nmap_brute)
+
+elif sys.argv[1] == "iker":
+  if not os.path.exists("iker.py"): os.system("wget --quiet https://raw.githubusercontent.com/jnqpblc/metasploit-db_automate/master/iker.py")
+  if not os.path.exists("ikeforce-spiderlabs"): os.system("git clone --quiet https://github.com/SpiderLabs/ikeforce.git ikeforce-spiderlabs")
+
+  if len(sys.argv) < 2:
+    check_for_database()
+    c = connect_to_database()
+    for row in c.execute("SELECT * FROM scandata WHERE protocol = 'udp' AND service = 'isakmp'"):
+      host_address = row[1]
+      service_port = row[2]
+      service_proto = row[5]
+
+      print("\n\n[*] Running iker.py on %s://%s:%s\n" % (service_proto, host_address, service_port))
+      iker_cmd = "sudo python2.7 iker.py --clientids ikeforce-spiderlabs/wordlists/groupnames.dic --output %s/pya-iker-output-%s-%s-%s.txt %s" % (directory_name, host_address, service_port, service_proto, host_address)
+      os.system(iker_cmd)
+  else:
+    host_address = sys.argv[2]
+    service_port = "500"
+    service_proto = "isakmp"
+
+    print("\n\n[*] Running iker.py on %s://%s:%s\n" % (service_proto, host_address, service_port))
+    iker_cmd = "sudo python2.7 iker.py --clientids ikeforce-spiderlabs/wordlists/groupnames.dic --output %s/pya-iker-output-%s-%s-%s.txt %s" % (directory_name, host_address, service_port, service_proto, host_address)
+    os.system(iker_cmd)
+
+elif sys.argv[1] == "ikeforce":
+  if not os.path.exists("ikeforce-spiderlabs"): os.system("git clone --quiet https://github.com/SpiderLabs/ikeforce.git ikeforce-spiderlabs")
+  if len(sys.argv) < 2:
+    check_for_database()
+    c = connect_to_database()
+    for row in c.execute("SELECT * FROM scandata WHERE protocol = 'udp' AND service = 'isakmp'"):
+      host_address = row[1]
+      service_port = row[2]
+      service_proto = row[5]
+
+      print("\n\n[*] Running ikeforce.py on %s://%s:%s\n" % (service_proto, host_address, service_port))
+      ikeforce_cmd = "sudo python2.7 ikeforce-spiderlabs/ikeforce.py %s -a | tee %s/pya-ikeforce-output-%s-%s-%s.txt" % (host_address, directory_name, host_address, service_port, service_proto)
+      os.system(ikeforce_cmd)
+  else:
+    host_address = sys.argv[2]
+    service_port = "500"
+    service_proto = "isakmp"
+
+    print("\n\n[*] Running ikeforce.py on %s://%s:%s\n" % (service_proto, host_address, service_port))
+    ikeforce_cmd = "sudo python2.7 ikeforce-spiderlabs/ikeforce.py %s -a | tee %s/pya-ikeforce-output-%s-%s-%s.txt" % (host_address, directory_name, host_address, service_port, service_proto)
+    os.system(ikeforce_cmd)
 
 else:
   sys.exit('[!] The supplied option failed!')
