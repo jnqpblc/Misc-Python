@@ -1,6 +1,5 @@
 import sqlite3, os, sys
-if len(sys.argv) < 2:
-  print '''
+banner = """
                     ,-.----.
                     \    /  \                                ,---,                        ___                       ____                ___ 
 ,-.----.            |   :    \                              '  .' \                     ,--.'|_                   ,'  , `.            ,--.'|_ 
@@ -17,13 +16,15 @@ if len(sys.argv) < 2:
   `---`       \  ' ;  `---`    `----'                                                                                    `--`---'                `----' 
                `--`
   by jnqpblc
-  '''
-  sys.exit('\nUsage: %s <option|print|nmapsvc {file_name}|vulnscan|brute|iker {optional ip}|ikeforce {optional ip}>\n' % sys.argv[0])
+"""
+usage = "\n%s\nUsage: %s <option|setup|help|print|show {output_dir}|masscan {file_name}|nmapsvc {file_name}|dnsrecon {file_name}|pyweb|vulnscan|brute|iker {optional ip}|ikeforce {optional ip}>\n" % (banner, sys.argv[0])
 
-# apt-get install lua-sql-sqlite3
+if len(sys.argv) < 2:
+  sys.exit(usage)
 
 directory_name = "output"
 sqlite_database_file = "scan.sqlite"
+targets = []
 
 def check_for_output_folder():
   if not os.path.exists(directory_name):
@@ -39,44 +40,189 @@ def connect_to_database():
 
 check_for_output_folder()
 
-if sys.argv[1] == "print":
+if sys.argv[1] == "setup":
+  print("\n[+] Running install commands...\n")
+  os.system("sudo apt install masscan nmap whatweb nikto sqlmap dirb ike-scan sqlite3 python2.7-minimal python2-dev build-essential")
+  with open('/etc/apt/sources.list') as f:
+    if 'ubuntu' in f.read():
+      os.system("wget http://ftp.us.debian.org/debian/pool/main/s/sqlmap/`curl -s http://ftp.us.debian.org/debian/pool/main/s/sqlmap/ |egrep -o 'sqlmap_[^\"]*all.deb' |sort -u |sort -t'_' -k2 -r |head`; sudo dpkg -i sqlmap_*_all.deb; rm -f sqlmap_*_all.deb")
+  f.close()
+  os.system("curl https://bootstrap.pypa.io/get-pip.py --output get-pip3.py")
+  os.system("curl https://bootstrap.pypa.io/2.7/get-pip.py --output get-pip2.py")
+  os.system("sudo python3 get-pip3.py; rm -f get-pip3.py")
+  os.system("sudo python2.7 get-pip2.py; rm -f get-pip2.py")
+  os.system("sudo pip2 install pyOpenSSL==17.2.0 pyip pyCrypto")
+  os.system("/usr/bin/python3 -m pip install --upgrade pip")
+  os.system("sudo pip3 install --upgrade setuptools")
+  os.system("sudo pip3 install --upgrade sslyze")
+  file = open(sys.argv[0], "r")
+  for line in file:
+    if ("os.system" and ("git " or "wget ")) in line:
+      print(line)
+      str = line.split('"')[5]
+      if str:
+        os.system("%s" % str)
+  sys.exit()
+
+elif sys.argv[1] == "help":
+  print("\n[+] Supported commands:\n")
+  file = open(sys.argv[0], "r")
+  for line in file:
+    if "sys.argv[1] == \"" in line:
+      str = line.split('"')[1]
+      if str:
+        print("    %s" % str)
+  sys.exit()
+
+elif sys.argv[1] == "show":
+  if len(sys.argv) < 3:
+    sys.exit(usage)
+  elif not os.path.exists(sys.argv[2]):
+    sys.exit("\n[!] The supplied directory does not exist.\n")
+  else:
+    os.system("find %s \( -name \*.txt -o -name \*.nmap \) -exec cat {} \; | egrep -v 'FAILED:|ERROR:| Couldn.t |: false| Can.t |Host is up|^SF-|^SF:' | less -R" % sys.argv[2])
+    sys.exit()
+
+elif sys.argv[1] == "print":
+  check_for_database()
+  import subprocess
+  schema = subprocess.run(['sqlite3', 'scan.sqlite', '.schema scandata'], capture_output=True)
+  print(schema)
+  c = connect_to_database()
+  #for row in c.execute("SELECT DISTINCT * from scandata where state not like '%filtered';"):
+  for row in c.execute("SELECT DISTINCT * from scandata;"):
+    print(row)
+
+elif sys.argv[1] == "add":
+  if len(sys.argv) < 6:
+    sys.exit('\nUsage: %s add {ip} (port) (protocol|tcp|udp) {service|https|isakmp} (version|optional|apache|iis}\n' % sys.argv[0])
   check_for_database()
   c = connect_to_database()
-  for row in c.execute("select * from scandata;"):
-    print(row)
+  # (hostname varchar(100), ip varchar(16), port integer(5), protocol varchar(3), state varchar(20), service varchar(100), version varchar(100));\n", stderr=b'')
+  ip = sys.argv[2];
+  port = int(sys.argv[3]);
+  protocol = sys.argv[4];
+  state = sys.argv[5];
+  service = sys.argv[6];
+  if len(sys.argv) < 8:
+    c.execute("INSERT INTO scandata (hostname, ip, port, protocol, state, service, version) VALUES ('', \"%s\", %d, \"%s\", \"%s\", \"%s\", '');" % (ip, port, protocol, state, service))
+  else:
+    version = sys.argv[7];
+    c.execute("INSERT INTO scandata (hostname, ip, port, protocol, state, service, version) VALUES ('', \"%s\", %d, \"%s\", \"%s\", \"%s\", \"%s\");" % (ip, port, protocol, state, service, version))
+
+elif sys.argv[1] == "clean":
+  if len(sys.argv) < 3:
+    sys.exit('\nUsage: %s clean {option|all|udp}\n' % sys.argv[0])
+  check_for_database()
+  c = connect_to_database()
+  if sys.argv[2] == "all":
+    remove_all_entries_cmd="sqlite3 %s \"DELETE FROM scandata;\"" % (sqlite_database_file)
+    os.system(remove_all_entries_cmd)
+  elif sys.argv[2] == "udp":
+    remove_filtered_udp_cmd="sqlite3 %s \"DELETE FROM scandata WHERE protocol = 'udp' AND state like '%%filtered';\"" % (sqlite_database_file)
+    os.system(remove_filtered_udp_cmd)
+  else:
+    sys.exit('[!] The supplied option failed!')
 
 elif sys.argv[1] == "masscan":
   if len(sys.argv) < 3:
-    sys.exit('\nUsage: %s masscan {file_name}\n' % sys.argv[0])
-  targets_file = sys.argv[2]
-  if not os.path.exists(targets_file):
-    sys.exit('\n[!] The file of IP Addresses to target does not exist.\n')
-  print("\n\n[*] Running a masscan portscan on all entires in %s" % (targets_file))
-  masscan_cmd = "sudo masscan -iL %s -p T:0-65535 --rate 1000 --banners -oB %s/pya-masscan-output.bin --interface eth0 | tee %s/pya-masscan-output.txt" % (targets_file, directory_name)
-  os.system(masscan_cmd)
-  masscan_xml_cmd = "masscan --open --banners --readscan %s/pya-masscan-output.bin -oX %s/pya-masscan-output.xml"
-  os.system(masscan_xml_cmd)
+    sys.exit('\nUsage: %s masscan {file_name|domain_name|ip_address}\n' % sys.argv[0])
+  masscan_cmd = ''
+  masscan_xml_cmd = ''
+  targets_option = sys.argv[2]
+  import validators
+  if os.path.exists(targets_option):
+    targets = open(targets_option, "r")
+    masscan_cmd = "sudo masscan -iL %s -p T:0-65535 --rate 100 --banners -oB %s/pya-masscan-output.bin --interface eth0 | tee %s/pya-masscan-output.txt" % (targets_option, directory_name, directory_name)
+    os.system(masscan_cmd)
+    masscan_xml_cmd = "masscan --open --banners --readscan %s/pya-masscan-output.bin -oX %s/pya-masscan-output.txt" % (directory_name, directory_name)
+    os.system(masscan_xml_cmd)
+  elif validators.ip_address.ipv4(targets_option):
+    targets.append(targets_option)
+    masscan_cmd = "sudo masscan -p T:0-65535 --rate 1000 --banners -oB %s/pya-masscan-output.bin --interface eth0 %s | tee %s/pya-masscan-ipv4-%s-output.txt" % (directory_name, targets, directory_name, targets)
+    masscan_xml_cmd = "masscan --open --banners --readscan %s/pya-masscan-output.bin -oX %s/pya-masscan-ipv4-%s-output.txt" % (directory_name, directory_name, targets)
+  elif validators.ip_address.ipv6(targets_option):
+    targets.append(targets_option)
+    masscan_cmd = "sudo masscan -p T:0-65535 --rate 1000 --banners -oB %s/pya-masscan-output.bin --interface eth0 %s | tee %s/pya-masscan-ipv6-%s-output.txt" % (directory_name, targets, directory_name, targets)
+    masscan_xml_cmd = "masscan --open --banners --readscan %s/pya-masscan-output.bin -oX %s/pya-masscan-ipv6-%s-output.txt" % (directory_name, directory_name, targets)
+  elif validators.domain(targets_option):
+    targets.append(targets_option)
+    masscan_cmd = "sudo masscan -p T:0-65535 --rate 1000 --banners -oB %s/pya-masscan-output.bin --interface eth0 %s | tee %s/pya-masscan-fqdn-%s-output.txt" % (directory_name, targets, directory_name, targets)
+    masscan_xml_cmd = "masscan --open --banners --readscan %s/pya-masscan-output.bin -oX %s/pya-masscan-fqdn-%s-output.txt" % (directory_name, directory_name, targets)
+  else:
+    sys.exit('\n[!] You did not supply a valid targets option or the file does not exist.\n')
 
 elif sys.argv[1] == "nmapsvc":
   if len(sys.argv) < 3:
-    sys.exit('\nUsage: %s nmapsvc {file_name}\n' % sys.argv[0])
+    sys.exit('\nUsage: %s nmapsvc {file_name} {rate} {ports}\n' % sys.argv[0])
   targets_file = sys.argv[2]
+  min_rate = sys.argv[3]
+  ports = sys.argv[4]
   if not os.path.exists(targets_file):
     sys.exit('\n[!] The file of IP Addresses to target does not exist.\n')
-  if not os.path.exists("sqlite-output.nse"):
-    os.system("wget --quiet https://raw.githubusercontent.com/exitnode/nmap-sqlite-output/master/sqlite-output.nse")
+  if not os.path.exists("sqlite-output.nse"): os.system("wget --quiet https://raw.githubusercontent.com/exitnode/nmap-sqlite-output/master/sqlite-output.nse")
   print("\n\n[*] Running an nmapsvc version scan on all entries in %s" % (targets_file))
-  nmapsvc_tcp_cmd = "nmap -Pn -n -sSV -p- --version-intensity 3 --min-parallelism 32 -iL %s --min-rate 1000 --script sqlite-output --script-args dbname=%s,dbtable=scandata -oA %s/pya-nmap-tcp-output" % (targets_file, sqlite_database_file, directory_name)
+  nmapsvc_tcp_cmd = "sudo nmap -Pn -n -sSV -p %s --open --version-intensity 3 --min-parallelism 32 -iL %s --min-rate %s --script sqlite-output --script-args dbname=%s,dbtable=scandata -oA %s/pya-nmap-tcp-output" % (ports, targets_file, min_rate, sqlite_database_file, directory_name)
   os.system(nmapsvc_tcp_cmd)
-  nmapsvc_udp_cmd = "nmap -Pn -n -sU --top-ports 30 --open --version-intensity 3 --min-parallelism 32 -iL %s --min-rate 1000 --script sqlite-output --script-args dbname=%s,dbtable=scandata -oA %s/pya-nmap-udp-output" % (targets_file, sqlite_database_file, directory_name)
+  nmapsvc_udp_cmd = "sudo nmap -Pn -n -sU --top-ports 30 --open --version-intensity 3 --min-parallelism 32 -iL %s --min-rate %s --script sqlite-output --script-args dbname=%s,dbtable=scandata -oA %s/pya-nmap-udp-output" % (targets_file, min_rate, sqlite_database_file, directory_name)
   os.system(nmapsvc_udp_cmd)
+  remove_filtered_udp_cmd="sqlite3 %s \"DELETE FROM scandata WHERE protocol = 'udp' AND state like '%%filtered';\"" % (sqlite_database_file)
+  os.system(remove_filtered_udp_cmd)
+
+elif sys.argv[1] == "dnsrecon":
+  if len(sys.argv) < 3:
+    sys.exit('\nUsage: %s dnsrecon {file_name}\n' % sys.argv[0])
+  targets_file = sys.argv[2]
+  if not os.path.exists(targets_file):
+    sys.exit('\n[!] The file of IP Ranges or CIDRs to target does not exist.\n')
+  dnsrecon_cmd = "for net in `cat %s`; do dnsrecon -t rvl -r $net; done | tee %s/pya-dnsrecon-output-rvl.txt" % (targets_file, directory_name)
+  os.system(dnsrecon_cmd)
+
+elif sys.argv[1] == "pyweb":
+  dnsrecon_file = "%s/pya-dnsrecon-output-rvl.txt" % (directory_name)
+  if not os.path.exists(dnsrecon_file):
+    sys.exit('\n[!] The dnsrecon output file does not exist. You need to run dnsrecon.\n')
+  dnsrecon_cmd = "for host in `grep PTR %s |awk '{print $3}' |sort -u`; do python3 pyweb_automate.py auto https 443 $host /; done" % (dnsrecon_file)
+  os.system(dnsrecon_cmd)
+
+elif sys.argv[1] == "sqlmap":
+  check_for_database()
+  c = connect_to_database()
+
+  # All scans for non-encrypted webservers (HTTP).
+  for row in c.execute("SELECT DISTINCT * FROM scandata WHERE protocol = 'tcp' AND (service = 'http' OR service = 'www' OR service = 'http-proxy')"):
+    host_address = row[1]
+    service_port = row[2]
+    service_proto = row[5]
+
+    print("\n\n[*] Running sqlmap_crawl on %s://%s:%s\n" % (service_proto, host_address, service_port))
+    http_sqlmap_crawl_cmd = "sqlmap --random-agent --batch --smart --crawl=4 --threads=3 --level=4 --risk=2 -u http://%s:%s/ | tee %s/pya-sqlmap-crawl-output-%s-%s-http.txt" % (host_address, service_port, directory_name, host_address, service_port)
+    os.system(http_sqlmap_crawl_cmd)
+
+    print("\n\n[*] Running sqlmap_forms on %s://%s:%s\n" % (service_proto, host_address, service_port))
+    http_sqlmap_forms_cmd = "sqlmap --random-agent --batch --smart --crawl=4  --forms --threads=3 --level=4 --risk=2 -u http://%s:%s/ | tee %s/pya-sqlmap-forms-output-%s-%s-http.txt" % (host_address, service_port, directory_name, host_address, service_port)
+    os.system(http_sqlmap_forms_cmd)
+
+  # All scans for encrypted webservers (SSL/TLS).
+  for row in c.execute("SELECT DISTINCT * FROM scandata WHERE protocol = 'tcp' AND (service LIKE '%https%' OR service LIKE '%ssl%')"):
+    host_address = row[1]
+    service_port = row[2]
+    service_proto = row[5]
+
+    print("\n\n[*] Running sqlmap_crawl on %s://%s:%s\n" % (service_proto, host_address, service_port))
+    http_sqlmap_crawl_cmd = "sqlmap --random-agent --batch --smart --crawl=4 --threads=3 --level=4 --risk=2 -u https://%s:%s/ | tee %s/pya-sqlmap-crawl-output-%s-%s-https.txt" % (host_address, service_port, directory_name, host_address, service_port)
+    os.system(http_sqlmap_crawl_cmd)
+
+    print("\n\n[*] Running sqlmap_forms on %s://%s:%s\n" % (service_proto, host_address, service_port))
+    http_sqlmap_forms_cmd = "sqlmap --random-agent --batch --smart --crawl=4  --forms --threads=3 --level=4 --risk=2 -u https://%s:%s/ | tee %s/pya-sqlmap-forms-output-%s-%s-https.txt" % (host_address, service_port, directory_name, host_address, service_port)
+    os.system(http_sqlmap_forms_cmd)
 
 elif sys.argv[1] == "vulnscan":
   check_for_database()
   c = connect_to_database()
 
   # All scans for non-encrypted webservers (HTTP).
-  for row in c.execute("SELECT * FROM scandata WHERE protocol = 'tcp' AND (service = 'http' OR service = 'www' OR service = 'http-proxy')"):
+  for row in c.execute("SELECT DISTINCT * FROM scandata WHERE protocol = 'tcp' AND (service = 'http' OR service = 'www' OR service = 'http-proxy')"):
     host_address = row[1]
     service_port = row[2]
     service_proto = row[5]
@@ -86,8 +232,13 @@ elif sys.argv[1] == "vulnscan":
     os.system(http_whatweb_cmd)
 
     print("\n\n[*] Running nikto on %s://%s:%s\n" % (service_proto, host_address, service_port))
-    http_nikto_cmd = "nikto -timeout 2 -nossl -host http://%s:%s/ -F xml -output %s/pya-nikto-output-%s-%s-http.xml | tee %s/pya-nikto-output-%s-%s-http.txt" % (host_address, service_port, directory_name, host_address, service_port, directory_name, host_address, service_port)
+    http_nikto_cmd = "nikto -timeout 2 -nossl -host http://%s:%s/ -Save . -F xml -output %s/pya-nikto-output-%s-%s-http.xml | tee %s/pya-nikto-output-%s-%s-http.txt" % (host_address, service_port, directory_name, host_address, service_port, directory_name, host_address, service_port)
     os.system(http_nikto_cmd)
+
+    # if using ubuntu, since the repo vrsion is old.
+    # wget http://ftp.us.debian.org/debian/pool/main/s/sqlmap/sqlmap_1.5.2-1_all.deb
+    # sudo dpkg -i sqlmap_1.5.2-1_all.deb
+    # wget http://ftp.us.debian.org/debian/pool/main/s/sqlmap/`curl -s http://ftp.us.debian.org/debian/pool/main/s/sqlmap/ |egrep -o 'sqlmap_[^"]*all.deb' |sort -u |sort -t'_' -k2 -r |head`
 
     print("\n\n[*] Running sqlmap_crawl on %s://%s:%s\n" % (service_proto, host_address, service_port))
     http_sqlmap_crawl_cmd = "sqlmap --random-agent --batch --smart --crawl=4 --threads=3 --level=4 --risk=2 -u http://%s:%s/ | tee %s/pya-sqlmap-crawl-output-%s-%s-http.txt" % (host_address, service_port, directory_name, host_address, service_port)
@@ -104,17 +255,17 @@ elif sys.argv[1] == "vulnscan":
 
     if not os.path.exists("wascan-m4ll0k"): os.system("git clone --quiet https://github.com/m4ll0k/WAScan wascan-m4ll0k")
     print("\n\n[*] Running wascan on %s://%s:%s\n" % (service_proto, host_address, service_port))
-    http_wascan_cmd = "cd wascan-m4ll0k/; python wascan.py --url http://%s:%s/ --scan 5 --ragent | tee ../%s/pya-wascan-output-%s-%s-http.txt" % (host_address, service_port, directory_name, host_address, service_port)
+    http_wascan_cmd = "cd wascan-m4ll0k/; python2 wascan.py --url http://%s:%s/ --scan 5 --ragent | tee ../%s/pya-wascan-output-%s-%s-http.txt" % (host_address, service_port, directory_name, host_address, service_port)
     os.system(http_wascan_cmd)
 
     if not os.path.exists("jexboss-joaomatosf"): os.system("git clone --quiet https://github.com/joaomatosf/jexboss jexboss-joaomatosf")
     print("\n\n[*] Running jexboss on %s://%s:%s\n" % (service_proto, host_address, service_port))
-    http_jexboss_cmd = "python jexboss-joaomatosf/jexboss.py -u http://%s:%s > %s/pya-jexboss-output-%s-%s-http.txt 2>&1" % (host_address, service_port, directory_name, host_address, service_port)
+    http_jexboss_cmd = "python3 jexboss-joaomatosf/jexboss.py -u http://%s:%s > %s/pya-jexboss-output-%s-%s-http.txt 2>&1" % (host_address, service_port, directory_name, host_address, service_port)
     os.system(http_jexboss_cmd)
 
     if not os.path.exists("struts-pwn"): os.system("git clone --quiet https://github.com/mazen160/struts-pwn struts-pwn")
     print("\n\n[*] Running struts-pwn on %s://%s:%s\n" % (service_proto, host_address, service_port))
-    http_struts_cmd = "python struts-pwn/struts-pwn.py --check --url http://%s:%s/ 2>/dev/null | tee %s/pya-struts-pwn-output-%s-%s-http.txt"  % (host_address, service_port, directory_name, host_address, service_port)
+    http_struts_cmd = "python3 struts-pwn/struts-pwn.py --check --url http://%s:%s/ 2>/dev/null | tee %s/pya-struts-pwn-output-%s-%s-http.txt"  % (host_address, service_port, directory_name, host_address, service_port)
     os.system(http_struts_cmd)
 
     print("\n\n[*] Running dirb on %s://%s:%s\n" % (service_proto, host_address, service_port))
@@ -122,7 +273,7 @@ elif sys.argv[1] == "vulnscan":
     os.system(http_dirb_cmd)
 
   # All scans for encrypted webservers (SSL/TLS).
-  for row in c.execute("SELECT * FROM scandata WHERE protocol = 'tcp' AND (service LIKE '%https%' OR service LIKE '%ssl%')"):
+  for row in c.execute("SELECT DISTINCT * FROM scandata WHERE protocol = 'tcp' AND (service LIKE '%https%' OR service LIKE '%ssl%')"):
     host_address = row[1]
     service_port = row[2]
     service_proto = row[5]
@@ -132,7 +283,7 @@ elif sys.argv[1] == "vulnscan":
     os.system(http_whatweb_cmd)
 
     print("\n\n[*] Running nikto on %s://%s:%s\n" % (service_proto, host_address, service_port))
-    http_nikto_cmd = "nikto -timeout 2 -nossl -host https://%s:%s/ -F xml -output %s/pya-nikto-output-%s-%s-https.xml | tee %s/pya-nikto-output-%s-%s-https.txt" % (host_address, service_port, directory_name, host_address, service_port, directory_name, host_address, service_port)
+    http_nikto_cmd = "nikto -timeout 2 -nossl -host https://%s:%s/ -Save . -F xml -output %s/pya-nikto-output-%s-%s-https.xml | tee %s/pya-nikto-output-%s-%s-https.txt" % (host_address, service_port, directory_name, host_address, service_port, directory_name, host_address, service_port)
     os.system(http_nikto_cmd)
 
     print("\n\n[*] Running sqlmap_crawl on %s://%s:%s\n" % (service_proto, host_address, service_port))
@@ -150,17 +301,17 @@ elif sys.argv[1] == "vulnscan":
 
     if not os.path.exists("wascan-m4ll0k"): os.system("git clone --quiet https://github.com/m4ll0k/WAScan wascan-m4ll0k")
     print("\n\n[*] Running wascan on %s://%s:%s\n" % (service_proto, host_address, service_port))
-    http_wascan_cmd = "cd wascan-m4ll0k/; python wascan.py --url https://%s:%s/ --scan 5 --ragent | tee ../%s/pya-wascan-output-%s-%s-https.txt" % (host_address, service_port, directory_name, host_address, service_port)
+    http_wascan_cmd = "cd wascan-m4ll0k/; python2 wascan.py --url https://%s:%s/ --scan 5 --ragent | tee ../%s/pya-wascan-output-%s-%s-https.txt" % (host_address, service_port, directory_name, host_address, service_port)
     os.system(http_wascan_cmd)
 
     if not os.path.exists("jexboss-joaomatosf"): os.system("git clone --quiet https://github.com/joaomatosf/jexboss jexboss-joaomatosf")
     print("\n\n[*] Running jexboss on %s://%s:%s\n" % (service_proto, host_address, service_port))
-    http_jexboss_cmd = "python jexboss-joaomatosf/jexboss.py -u https://%s:%s > %s/pya-jexboss-output-%s-%s-https.txt 2>&1" % (host_address, service_port, directory_name, host_address, service_port)
+    http_jexboss_cmd = "python3 jexboss-joaomatosf/jexboss.py -u https://%s:%s > %s/pya-jexboss-output-%s-%s-https.txt 2>&1" % (host_address, service_port, directory_name, host_address, service_port)
     os.system(http_jexboss_cmd)
 
     if not os.path.exists("struts-pwn"): os.system("git clone --quiet https://github.com/mazen160/struts-pwn struts-pwn")
     print("\n\n[*] Running struts-pwn on %s://%s:%s\n" % (service_proto, host_address, service_port))
-    http_struts_cmd = "python struts-pwn/struts-pwn.py --check --url https://%s:%s/ 2>/dev/null | tee %s/pya-struts-pwn-output-%s-%s-https.txt"  % (host_address, service_port, directory_name, host_address, service_port)
+    http_struts_cmd = "python3 struts-pwn/struts-pwn.py --check --url https://%s:%s/ 2>/dev/null | tee %s/pya-struts-pwn-output-%s-%s-https.txt"  % (host_address, service_port, directory_name, host_address, service_port)
     os.system(http_struts_cmd)
 
     print("\n\n[*] Running dirb on %s://%s:%s\n" % (service_proto, host_address, service_port))
@@ -169,25 +320,25 @@ elif sys.argv[1] == "vulnscan":
 
   # Jetty specific scan.
   query = '%jetty%'
-  for row in c.execute("SELECT * FROM scandata WHERE protocol = 'tcp' AND version LIKE '%s'" % query):
+  for row in c.execute("SELECT DISTINCT * FROM scandata WHERE protocol = 'tcp' AND version LIKE '%s'" % query):
     host_address = row[1]
     service_port = row[2]
     service_proto = row[5]
 
     if not os.path.exists("jetleak-testing-script-gdssecurity"): os.system("git clone --quiet https://github.com/GDSSecurity/Jetleak-Testing-Script jetleak-testing-script-gdssecurity")
     print("\n\n[*] Running jetleak on %s://%s:%s\n" % (service_proto, host_address, service_port))
-    http_jetleak_cmd = "python jetleak-testing-script-gdssecurity/jetleak_tester.py http://%s %s | tee %s/pya-jetleak-output-%s-%s-http.txt" % (host_address, service_port, directory_name, host_address, service_port)
+    http_jetleak_cmd = "python3 jetleak-testing-script-gdssecurity/jetleak_tester.py http://%s %s | tee %s/pya-jetleak-output-%s-%s-http.txt" % (host_address, service_port, directory_name, host_address, service_port)
     os.system(http_jetleak_cmd)
 
   # All scans for only TCP specific stuff.
-  for row in c.execute("SELECT * FROM scandata WHERE protocol = 'tcp'"):
+  for row in c.execute("SELECT DISTINCT * FROM scandata WHERE protocol = 'tcp'"):
     host_address = row[1]
     service_port = row[2]
     service_proto = row[5]
 
-    if not os.path.exists("sslyze-nabla-c0d3"): os.system("git clone --quiet https://github.com/nabla-c0d3/sslyze.git sslyze-nabla-c0d3 && sudo pip3 install --upgrade sslyze")
+    #if not os.path.exists("sslyze-nabla-c0d3"): os.system("git clone --quiet https://github.com/nabla-c0d3/sslyze.git sslyze-nabla-c0d3 && sudo pip3 install --upgrade sslyze")
     print("\n\n[*] Running sslyze on %s://%s:%s\n" % (service_proto, host_address, service_port))
-    tcp_sslyze_cmd = "sslyze --regular %s:%s > pya-sslyze-output-%s-%s.txt" % (host_address, service_port, host_address, service_port)
+    tcp_sslyze_cmd = "python3 -m sslyze --regular %s:%s > %s/pya-sslyze-output-%s-%s.txt" % (host_address, service_port, directory_name, host_address, service_port)
     os.system(tcp_sslyze_cmd)
 
     print("\n\n[*] Running nmapnse on %s://%s:%s\n" % (service_proto, host_address, service_port))
@@ -195,7 +346,7 @@ elif sys.argv[1] == "vulnscan":
     os.system(tcp_nmapnse_cmd)
 
   # All scans for only UDP specific stuff.
-  for row in c.execute("SELECT * FROM scandata WHERE protocol = 'udp'"):
+  for row in c.execute("SELECT DISTINCT * FROM scandata WHERE protocol = 'udp' AND state not like '%filtered';"):
     host_address = row[1]
     service_port = row[2]
     service_proto = row[5]
@@ -210,7 +361,7 @@ elif sys.argv[1] == "brute":
   if not os.path.exists("unix_users.txt"): os.system("wget --quiet https://raw.githubusercontent.com/rapid7/metasploit-framework/master/data/wordlists/unix_users.txt")
   if not os.path.exists("unix_passwords.txt"): os.system("wget --quiet https://raw.githubusercontent.com/rapid7/metasploit-framework/master/data/wordlists/unix_passwords.txt")
   query = '%ssh%'
-  for row in c.execute("SELECT * FROM scandata WHERE protocol = 'tcp' AND version LIKE '%s'" % query):
+  for row in c.execute("SELECT DISTINCT * FROM scandata WHERE protocol = 'tcp' AND version LIKE '%s'" % query):
     host_address = row[1]
     service_port = row[2]
     service_proto = row[5]
@@ -220,7 +371,7 @@ elif sys.argv[1] == "brute":
     os.system(nmap_ssh_brute)
 
   query = '%ftp%'
-  for row in c.execute("SELECT * FROM scandata WHERE protocol = 'tcp' AND version LIKE '%s'" % query):
+  for row in c.execute("SELECT DISTINCT * FROM scandata WHERE protocol = 'tcp' AND version LIKE '%s'" % query):
     host_address = row[1]
     service_port = row[2]
     service_proto = row[5]
@@ -234,7 +385,7 @@ elif sys.argv[1] == "brute-all":
   c = connect_to_database()
   if not os.path.exists("unix_users.txt"): os.system("wget --quiet https://raw.githubusercontent.com/rapid7/metasploit-framework/master/data/wordlists/unix_users.txt")
   if not os.path.exists("unix_passwords.txt"): os.system("wget --quiet https://raw.githubusercontent.com/rapid7/metasploit-framework/master/data/wordlists/unix_passwords.txt")
-  for row in c.execute("SELECT * FROM scandata;"):
+  for row in c.execute("SELECT DISTINCT * FROM scandata;"):
     host_address = row[1]
     service_port = row[2]
     service_proto = row[5]
@@ -244,13 +395,14 @@ elif sys.argv[1] == "brute-all":
     os.system(nmap_brute)
 
 elif sys.argv[1] == "iker":
-  if not os.path.exists("iker.py"): os.system("wget --quiet https://raw.githubusercontent.com/jnqpblc/metasploit-db_automate/master/iker.py")
+  #if not os.path.exists("iker.py"): os.system("wget --quiet https://raw.githubusercontent.com/jnqpblc/metasploit-db_automate/master/iker.py")
+  if not os.path.exists("iker.py"): os.system("curl -sk https://labs.portcullis.co.uk/download/iker_v1.1.tar |tar --extract")
   if not os.path.exists("ikeforce-spiderlabs"): os.system("git clone --quiet https://github.com/SpiderLabs/ikeforce.git ikeforce-spiderlabs")
 
-  if len(sys.argv) < 2:
+  if len(sys.argv) == 2:
     check_for_database()
     c = connect_to_database()
-    for row in c.execute("SELECT * FROM scandata WHERE protocol = 'udp' AND service = 'isakmp'"):
+    for row in c.execute("SELECT DISTINCT * FROM scandata WHERE protocol = 'udp' AND service = 'isakmp' AND state not like '%filtered';"):
       host_address = row[1]
       service_port = row[2]
       service_proto = row[5]
@@ -269,10 +421,10 @@ elif sys.argv[1] == "iker":
 
 elif sys.argv[1] == "ikeforce":
   if not os.path.exists("ikeforce-spiderlabs"): os.system("git clone --quiet https://github.com/SpiderLabs/ikeforce.git ikeforce-spiderlabs")
-  if len(sys.argv) < 2:
+  if len(sys.argv) == 2:
     check_for_database()
     c = connect_to_database()
-    for row in c.execute("SELECT * FROM scandata WHERE protocol = 'udp' AND service = 'isakmp'"):
+    for row in c.execute("SELECT DISTINCT * FROM scandata WHERE protocol = 'udp' AND service = 'isakmp' AND state not like '%filtered';"):
       host_address = row[1]
       service_port = row[2]
       service_proto = row[5]
