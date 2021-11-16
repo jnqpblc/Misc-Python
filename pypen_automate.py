@@ -17,7 +17,7 @@ banner = """
                `--`
   by jnqpblc
 """
-usage = "\n%s\nUsage: %s <option|setup|help|print|show {output_dir}|masscan {file_name}|nmapsvc {file_name}|dnsrecon {file_name}|pyweb|vulnscan|brute|iker {optional ip}|ikeforce {optional ip}>\n" % (banner, sys.argv[0])
+usage = "\n%s\nUsage: %s <option|setup|help|print|show {output_dir}|masscan {rate} {file_name}|nmapsvc {rate} {file_name}|dnsrecon {file_name}|pyweb|vulnscan|brute|iker {optional ip}|ikeforce {optional ip}>\n" % (banner, sys.argv[0])
 
 if len(sys.argv) < 2:
   sys.exit(usage)
@@ -42,13 +42,13 @@ check_for_output_folder()
 
 if sys.argv[1] == "setup":
   print("\n[+] Running install commands...\n")
-  os.system("sudo apt install masscan nmap whatweb nikto sqlmap dirb ike-scan sqlite3 python2.7-minimal python2-dev build-essential")
+  os.system("sudo apt install masscan nmap whatweb nikto sqlmap dirb ike-scan sqlite3 python2.7-minimal python2-dev build-essential lua-sql-sqlite3 lua-sql-sqlite3-dev")
   with open('/etc/apt/sources.list') as f:
     if 'ubuntu' in f.read():
       os.system("wget http://ftp.us.debian.org/debian/pool/main/s/sqlmap/`curl -s http://ftp.us.debian.org/debian/pool/main/s/sqlmap/ |egrep -o 'sqlmap_[^\"]*all.deb' |sort -u |sort -t'_' -k2 -r |head`; sudo dpkg -i sqlmap_*_all.deb; rm -f sqlmap_*_all.deb")
   f.close()
-  os.system("curl https://bootstrap.pypa.io/get-pip.py --output get-pip3.py")
-  os.system("curl https://bootstrap.pypa.io/2.7/get-pip.py --output get-pip2.py")
+  os.system("curl https://bootstrap.pypa.io/pip/get-pip.py --output get-pip3.py")
+  os.system("curl https://bootstrap.pypa.io/pip/2.7/get-pip.py --output get-pip2.py")
   os.system("sudo python3 get-pip3.py; rm -f get-pip3.py")
   os.system("sudo python2.7 get-pip2.py; rm -f get-pip2.py")
   os.system("sudo pip2 install pyOpenSSL==17.2.0 pyip pyCrypto")
@@ -93,6 +93,7 @@ elif sys.argv[1] == "print":
   for row in c.execute("SELECT DISTINCT * from scandata;"):
     print(row)
 
+
 elif sys.argv[1] == "add":
   if len(sys.argv) < 6:
     sys.exit('\nUsage: %s add {ip} (port) (protocol|tcp|udp) {service|https|isakmp} (version|optional|apache|iis}\n' % sys.argv[0])
@@ -110,6 +111,20 @@ elif sys.argv[1] == "add":
     version = sys.argv[7];
     c.execute("INSERT INTO scandata (hostname, ip, port, protocol, state, service, version) VALUES ('', \"%s\", %d, \"%s\", \"%s\", \"%s\", \"%s\");" % (ip, port, protocol, state, service, version))
 
+elif sys.argv[1] == "import":
+  if len(sys.argv) < 6:
+    sys.exit('\nUsage: %s import {output/pya-masscan-output.xml}\n' % sys.argv[0])
+  check_for_database()
+  c = connect_to_database()
+  file = open(sys.argv[0], "r")
+  for line in file:
+    if "addr" in line:
+      ip = line.split('"')[3]
+      port = line.split('"')[9]
+      protocol = line.split('"')[7]
+      state = line.split('"')[11]
+      c.execute("INSERT INTO scandata (hostname, ip, port, protocol, state, service, version) VALUES ('', \"%s\", %d, \"%s\", \"%s\", '', '');" % (ip, port, protocol, state))
+
 elif sys.argv[1] == "clean":
   if len(sys.argv) < 3:
     sys.exit('\nUsage: %s clean {option|all|udp}\n' % sys.argv[0])
@@ -125,49 +140,61 @@ elif sys.argv[1] == "clean":
     sys.exit('[!] The supplied option failed!')
 
 elif sys.argv[1] == "masscan":
-  if len(sys.argv) < 3:
-    sys.exit('\nUsage: %s masscan {file_name|domain_name|ip_address}\n' % sys.argv[0])
+  if len(sys.argv) < 4:
+    sys.exit('\nUsage: %s masscan {rate} {file_name|domain_name|ip_address}\n' % sys.argv[0])
   masscan_cmd = ''
   masscan_xml_cmd = ''
-  targets_option = sys.argv[2]
-  import validators
+  scan_rate = sys.argv[2]
+  targets_option = sys.argv[3]
+  import validators, time
+  filestamp = time.strftime("%Y%m%d-%H%M%S")
   if os.path.exists(targets_option):
     targets = open(targets_option, "r")
-    masscan_cmd = "sudo masscan -iL %s -p T:0-65535 --rate 100 --banners -oB %s/pya-masscan-output.bin --interface eth0 | tee %s/pya-masscan-output.txt" % (targets_option, directory_name, directory_name)
+    masscan_cmd = "sudo masscan -iL %s -p T:0-65535 --rate %s --banners -oB %s/pya-masscan-output-%s.bin --interface eth0 | tee %s/pya-masscan-output-%s.txt" % (targets_option, scan_rate, directory_name, filestamp, directory_name, filestamp)
     os.system(masscan_cmd)
-    masscan_xml_cmd = "masscan --open --banners --readscan %s/pya-masscan-output.bin -oX %s/pya-masscan-output.txt" % (directory_name, directory_name)
+    masscan_xml_cmd = "masscan --open --banners --readscan %s/pya-masscan-output-%s.bin -oX %s/pya-masscan-output-%s.xml" % (directory_name, filestamp, directory_name, filestamp)
     os.system(masscan_xml_cmd)
+    masscan_txt_cmd = "masscan --open --banners --readscan %s/pya-masscan-output-%s.bin > %s/pya-masscan-output-%s.txt" % (directory_name, filestamp, directory_name, filestamp)
+    os.system(masscan_txt_cmd)
   elif validators.ip_address.ipv4(targets_option):
     targets.append(targets_option)
-    masscan_cmd = "sudo masscan -p T:0-65535 --rate 1000 --banners -oB %s/pya-masscan-output.bin --interface eth0 %s | tee %s/pya-masscan-ipv4-%s-output.txt" % (directory_name, targets, directory_name, targets)
-    masscan_xml_cmd = "masscan --open --banners --readscan %s/pya-masscan-output.bin -oX %s/pya-masscan-ipv4-%s-output.txt" % (directory_name, directory_name, targets)
+    masscan_cmd = "sudo masscan -p T:0-65535 --rate %s --banners -oB %s/pya-masscan-output-%s.bin --interface eth0 %s | tee %s/pya-masscan-ipv4-%s-output.txt" % (scan_rate, directory_name, targets, targets, directory_name, targets)
+    masscan_txt_cmd = "masscan --open --banners --readscan %s/pya-masscan-output-%s.bin > %s/pya-masscan-ipv4-%s-output.txt" % (directory_name, targets, directory_name, targets)
+    masscan_xml_cmd = "masscan --open --banners --readscan %s/pya-masscan-output-%s.bin -oX %s/pya-masscan-ipv4-%s-output.xml" % (directory_name, targets, directory_name, targets)
   elif validators.ip_address.ipv6(targets_option):
     targets.append(targets_option)
-    masscan_cmd = "sudo masscan -p T:0-65535 --rate 1000 --banners -oB %s/pya-masscan-output.bin --interface eth0 %s | tee %s/pya-masscan-ipv6-%s-output.txt" % (directory_name, targets, directory_name, targets)
-    masscan_xml_cmd = "masscan --open --banners --readscan %s/pya-masscan-output.bin -oX %s/pya-masscan-ipv6-%s-output.txt" % (directory_name, directory_name, targets)
+    masscan_cmd = "sudo masscan -p T:0-65535 --rate 1000 --banners -oB %s/pya-masscan-output-%s.bin --interface eth0 %s | tee %s/pya-masscan-ipv6-%s-output.txt" % (directory_name, targets, targets, directory_name, targets)
+    masscan_txt_cmd = "masscan --open --banners --readscan %s/pya-masscan-output-%s.bin > %s/pya-masscan-ipv6-%s-output.txt" % (directory_name, targets, directory_name, targets)
+    masscan_xml_cmd = "masscan --open --banners --readscan %s/pya-masscan-output-%s.bin -oX %s/pya-masscan-ipv6-%s-output.xml" % (directory_name, targets, directory_name, targets)
   elif validators.domain(targets_option):
     targets.append(targets_option)
-    masscan_cmd = "sudo masscan -p T:0-65535 --rate 1000 --banners -oB %s/pya-masscan-output.bin --interface eth0 %s | tee %s/pya-masscan-fqdn-%s-output.txt" % (directory_name, targets, directory_name, targets)
-    masscan_xml_cmd = "masscan --open --banners --readscan %s/pya-masscan-output.bin -oX %s/pya-masscan-fqdn-%s-output.txt" % (directory_name, directory_name, targets)
+    masscan_cmd = "sudo masscan -p T:0-65535 --rate 1000 --banners -oB %s/pya-masscan-output-%s.bin --interface eth0 %s | tee %s/pya-masscan-fqdn-%s-output.txt" % (directory_name, targets, targets, directory_name, targets)
+    masscan_txt_cmd = "masscan --open --banners --readscan %s/pya-masscan-output-%s.bin > %s/pya-masscan-fqdn-%s-output.txt" % (directory_name, targets, directory_name, targets)
+    masscan_xml_cmd = "masscan --open --banners --readscan %s/pya-masscan-output-%s.bin -oX %s/pya-masscan-fqdn-%s-output.xml" % (directory_name, targets, directory_name, targets)
   else:
     sys.exit('\n[!] You did not supply a valid targets option or the file does not exist.\n')
 
 elif sys.argv[1] == "nmapsvc":
   if len(sys.argv) < 3:
-    sys.exit('\nUsage: %s nmapsvc {file_name} {rate} {ports}\n' % sys.argv[0])
-  targets_file = sys.argv[2]
+    sys.exit('\nUsage: %s nmapsvc {mode} {rate} {file_name} {ports}\n' % sys.argv[0])
+  scan_mode = sys.argv[2]
   min_rate = sys.argv[3]
-  ports = sys.argv[4]
+  targets_file = sys.argv[4]
   if not os.path.exists(targets_file):
     sys.exit('\n[!] The file of IP Addresses to target does not exist.\n')
   if not os.path.exists("sqlite-output.nse"): os.system("wget --quiet https://raw.githubusercontent.com/exitnode/nmap-sqlite-output/master/sqlite-output.nse")
-  print("\n\n[*] Running an nmapsvc version scan on all entries in %s" % (targets_file))
-  nmapsvc_tcp_cmd = "sudo nmap -Pn -n -sSV -p %s --open --version-intensity 3 --min-parallelism 32 -iL %s --min-rate %s --script sqlite-output --script-args dbname=%s,dbtable=scandata -oA %s/pya-nmap-tcp-output" % (ports, targets_file, min_rate, sqlite_database_file, directory_name)
-  os.system(nmapsvc_tcp_cmd)
-  nmapsvc_udp_cmd = "sudo nmap -Pn -n -sU --top-ports 30 --open --version-intensity 3 --min-parallelism 32 -iL %s --min-rate %s --script sqlite-output --script-args dbname=%s,dbtable=scandata -oA %s/pya-nmap-udp-output" % (targets_file, min_rate, sqlite_database_file, directory_name)
-  os.system(nmapsvc_udp_cmd)
-  remove_filtered_udp_cmd="sqlite3 %s \"DELETE FROM scandata WHERE protocol = 'udp' AND state like '%%filtered';\"" % (sqlite_database_file)
-  os.system(remove_filtered_udp_cmd)
+  if scan_mode == "masscan":
+    nmapsvc_tcp_cmd = "sudo nmap -Pn -n -sSV -p $(cat %s |awk '{print $4}' |cut -d'/' -f1 |sort -un |tr '\n' ',' |sed 's/,$//g;') --open --version-intensity 3 --min-parallelism 32 $(cat %s |awk '{print $6}' |sort -u |tr '\n' ' ') --min-rate %s --script sqlite-output --script-args dbname=%s,dbtable=scandata -oA %s/pya-nmap-tcp-output" % (targets_file, targets_file, min_rate, sqlite_database_file, directory_name)
+    os.system(nmapsvc_tcp_cmd)
+  else:
+    ports = sys.argv[5]
+    print("\n\n[*] Running an nmapsvc version scan on all entries in %s" % (targets_file))
+    nmapsvc_tcp_cmd = "sudo nmap -Pn -n -sSV -p %s --open --version-intensity 3 --min-parallelism 32 -iL %s --min-rate %s --script sqlite-output --script-args dbname=%s,dbtable=scandata -oA %s/pya-nmap-tcp-output" % (ports, targets_file, min_rate, sqlite_database_file, directory_name)
+    os.system(nmapsvc_tcp_cmd)
+    nmapsvc_udp_cmd = "sudo nmap -Pn -n -sU --top-ports 30 --open --version-intensity 3 --min-parallelism 32 -iL %s --min-rate %s --script sqlite-output --script-args dbname=%s,dbtable=scandata -oA %s/pya-nmap-udp-output" % (targets_file, min_rate, sqlite_database_file, directory_name)
+    os.system(nmapsvc_udp_cmd)
+    remove_filtered_udp_cmd="sqlite3 %s \"DELETE FROM scandata WHERE protocol = 'udp' AND state like '%%filtered';\"" % (sqlite_database_file)
+    os.system(remove_filtered_udp_cmd)
 
 elif sys.argv[1] == "dnsrecon":
   if len(sys.argv) < 3:
@@ -253,11 +280,6 @@ elif sys.argv[1] == "vulnscan":
     http_tomcat_cmd = "nmap -Pn -n -sT -T4 -p %s --script ./tomcat-scan.nse -oA %s/pya-tomcat-scan-output-%s-%s-http %s" % (service_port, directory_name, host_address, service_port, host_address)
     os.system(http_tomcat_cmd)
 
-    if not os.path.exists("wascan-m4ll0k"): os.system("git clone --quiet https://github.com/m4ll0k/WAScan wascan-m4ll0k")
-    print("\n\n[*] Running wascan on %s://%s:%s\n" % (service_proto, host_address, service_port))
-    http_wascan_cmd = "cd wascan-m4ll0k/; python2 wascan.py --url http://%s:%s/ --scan 5 --ragent | tee ../%s/pya-wascan-output-%s-%s-http.txt" % (host_address, service_port, directory_name, host_address, service_port)
-    os.system(http_wascan_cmd)
-
     if not os.path.exists("jexboss-joaomatosf"): os.system("git clone --quiet https://github.com/joaomatosf/jexboss jexboss-joaomatosf")
     print("\n\n[*] Running jexboss on %s://%s:%s\n" % (service_proto, host_address, service_port))
     http_jexboss_cmd = "python3 jexboss-joaomatosf/jexboss.py -u http://%s:%s > %s/pya-jexboss-output-%s-%s-http.txt 2>&1" % (host_address, service_port, directory_name, host_address, service_port)
@@ -298,11 +320,6 @@ elif sys.argv[1] == "vulnscan":
     print("\n\n[*] Running tomcat-scan.nse on %s://%s:%s\n" % (service_proto, host_address, service_port))
     http_tomcat_cmd = "nmap -Pn -n -sT -T4 -p %s --script ./tomcat-scan.nse -oA %s/pya-tomcat-scan-output-%s-%s-https %s" % (service_port, directory_name, host_address, service_port, host_address)
     os.system(http_tomcat_cmd)
-
-    if not os.path.exists("wascan-m4ll0k"): os.system("git clone --quiet https://github.com/m4ll0k/WAScan wascan-m4ll0k")
-    print("\n\n[*] Running wascan on %s://%s:%s\n" % (service_proto, host_address, service_port))
-    http_wascan_cmd = "cd wascan-m4ll0k/; python2 wascan.py --url https://%s:%s/ --scan 5 --ragent | tee ../%s/pya-wascan-output-%s-%s-https.txt" % (host_address, service_port, directory_name, host_address, service_port)
-    os.system(http_wascan_cmd)
 
     if not os.path.exists("jexboss-joaomatosf"): os.system("git clone --quiet https://github.com/joaomatosf/jexboss jexboss-joaomatosf")
     print("\n\n[*] Running jexboss on %s://%s:%s\n" % (service_proto, host_address, service_port))
