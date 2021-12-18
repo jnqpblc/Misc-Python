@@ -52,7 +52,7 @@ web_root = "/"
 if len(sys.argv) == 6:
   web_root = sys.argv[5]
 user = os.environ.get('USER')
-wpscan_api = "Xr3JjnDWgwCm30Ow7pCfkOJwghPYH5twPyZ2Epmoldo"
+wpscan_api = "{YOUR_API_KEY}"
 nikto_config = "/etc/nikto/config.txt"
 targets = []
 
