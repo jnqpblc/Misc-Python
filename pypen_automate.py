@@ -54,7 +54,7 @@ if sys.argv[1] == "setup":
   os.system("sudo pip2 install pyOpenSSL==17.2.0 pyip pyCrypto")
   os.system("sudo /usr/bin/python2.7 -m pip install --upgrade pip")
   os.system("sudo /usr/bin/python3 -m pip install --upgrade pip")
-  os.system("sudo pip3 install --upgrade setuptools validators sslyze")
+  os.system("sudo pip3 install --upgrade setuptools validators sslyze netifaces pyCrypto")
   file = open(sys.argv[0], "r")
   for line in file:
     if ("os.system" and "git ") in line:
@@ -253,7 +253,8 @@ elif sys.argv[1] == "pyweb":
       nmap_pyweb_cmd = "python3 pyweb_automate.py %s nse %s %s" % (pyweb_command, service_ports, host_address)
       print(nmap_pyweb_cmd)
 
-  elif pyweb_command == "whatweb" or pyweb_command == "nikto" or pyweb_command == "wpscan" or pyweb_command == "sqlmap_crawl" or pyweb_command == "sqlmap_forms" or pyweb_command == "wascan" or pyweb_command == "jexboss" or pyweb_command == "struts_pwn" or pyweb_command == "jetleak" or pyweb_command == "dirb" or pyweb_command == "sslyze":
+  #elif pyweb_command == "whatweb" or pyweb_command == "nikto" or pyweb_command == "wpscan" or pyweb_command == "sqlmap_crawl" or pyweb_command == "sqlmap_forms" or pyweb_command == "wascan" or pyweb_command == "jexboss" or pyweb_command == "struts_pwn" or pyweb_command == "jetleak" or pyweb_command == "dirb" or pyweb_command == "sslyze":
+  else:
     check_for_database()
     c = connect_to_database()
 
