@@ -52,26 +52,49 @@ if sys.argv[1] == "setup":
   os.system("sudo python3 get-pip3.py; rm -f get-pip3.py")
   os.system("sudo python2.7 get-pip2.py; rm -f get-pip2.py")
   os.system("sudo pip2 install pyOpenSSL==17.2.0 pyip pyCrypto")
-  os.system("/usr/bin/python3 -m pip install --upgrade pip")
-  os.system("sudo pip3 install --upgrade setuptools")
-  os.system("sudo pip3 install --upgrade sslyze")
+  os.system("sudo /usr/bin/python2.7 -m pip install --upgrade pip")
+  os.system("sudo /usr/bin/python3 -m pip install --upgrade pip")
+  os.system("sudo pip3 install --upgrade setuptools validators sslyze")
   file = open(sys.argv[0], "r")
   for line in file:
-    if ("os.system" and ("git " or "wget ")) in line:
-      print(line)
-      str = line.split('"')[5]
-      if str:
-        os.system("%s" % str)
+    if ("os.system" and "git ") in line:
+      try:
+        str = line.split('"')[3]
+        if "--" in str:
+          print(str)
+          os.system("%s" % str)
+      except:
+        continue
+    elif ("os.system" and "wget ") in line:
+      try:
+        str = line.split('"')[3]
+        if "--" in str:
+          print(str)
+          os.system("%s" % str)
+      except:
+        continue
   sys.exit()
 
 elif sys.argv[1] == "help":
-  print("\n[+] Supported commands:\n")
+  print("\n[+] %s Supported commands:\n" % sys.argv[0])
   file = open(sys.argv[0], "r")
   for line in file:
     if "sys.argv[1] == \"" in line:
       str = line.split('"')[1]
       if str:
-        print("    %s" % str)
+        if str == "pyweb":
+          print("    %s {cmd}" % str)
+        elif str == "masscan":
+          print("    %s {rate} {file_name|domain_name|ip_address}" % str)
+        elif str == "nmapsvc":
+          print("    %s {mode|masscan|nmap} {rate} {file_name} {ports}" % str)
+        elif str == "add":
+          print("    %s {ip} {port} {protocol|tcp|udp} {service|https|isakmp} {version|optional|apache|iis}" % str)
+        elif str == "import":
+          print("    %s {output/pya-masscan-output.xml}" % str)
+        else:
+          print("    %s" % str)
+  os.system('python3 pyweb_automate.py help')
   sys.exit()
 
 elif sys.argv[1] == "show":
@@ -92,7 +115,6 @@ elif sys.argv[1] == "print":
   #for row in c.execute("SELECT DISTINCT * from scandata where state not like '%filtered';"):
   for row in c.execute("SELECT DISTINCT * from scandata;"):
     print(row)
-
 
 elif sys.argv[1] == "add":
   if len(sys.argv) < 6:
@@ -176,7 +198,7 @@ elif sys.argv[1] == "masscan":
 
 elif sys.argv[1] == "nmapsvc":
   if len(sys.argv) < 3:
-    sys.exit('\nUsage: %s nmapsvc {mode} {rate} {file_name} {ports}\n' % sys.argv[0])
+    sys.exit('\nUsage: %s nmapsvc {mode|masscan|nmap} {rate} {file_name} {ports}\n' % sys.argv[0])
   scan_mode = sys.argv[2]
   min_rate = sys.argv[3]
   targets_file = sys.argv[4]
@@ -205,44 +227,56 @@ elif sys.argv[1] == "dnsrecon":
   dnsrecon_cmd = "for net in `cat %s`; do dnsrecon -t rvl -r $net; done | tee %s/pya-dnsrecon-output-rvl.txt" % (targets_file, directory_name)
   os.system(dnsrecon_cmd)
 
+
 elif sys.argv[1] == "pyweb":
-  dnsrecon_file = "%s/pya-dnsrecon-output-rvl.txt" % (directory_name)
-  if not os.path.exists(dnsrecon_file):
-    sys.exit('\n[!] The dnsrecon output file does not exist. You need to run dnsrecon.\n')
-  dnsrecon_cmd = "for host in `grep PTR %s |awk '{print $3}' |sort -u`; do python3 pyweb_automate.py auto https 443 $host /; done" % (dnsrecon_file)
-  os.system(dnsrecon_cmd)
 
-elif sys.argv[1] == "sqlmap":
-  check_for_database()
-  c = connect_to_database()
+  #dnsrecon_file = "%s/pya-dnsrecon-output-rvl.txt" % (directory_name)
+  #if not os.path.exists(dnsrecon_file):
+  #  sys.exit('\n[!] The dnsrecon output file does not exist. You need to run dnsrecon.\n')
+  #dnsrecon_cmd = "for host in `grep PTR %s |awk '{print $3}' |sort -u`; do python3 pyweb_automate.py auto https 443 $host /; done" % (dnsrecon_file)
+  #os.system(dnsrecon_cmd)
 
-  # All scans for non-encrypted webservers (HTTP).
-  for row in c.execute("SELECT DISTINCT * FROM scandata WHERE protocol = 'tcp' AND (service = 'http' OR service = 'www' OR service = 'http-proxy')"):
-    host_address = row[1]
-    service_port = row[2]
-    service_proto = row[5]
+  pyweb_command = sys.argv[2]
+  if pyweb_command == "tomcat" or pyweb_command == "nse" or pyweb_command == "brute":
+    check_for_database()
+    c = connect_to_database()
 
-    print("\n\n[*] Running sqlmap_crawl on %s://%s:%s\n" % (service_proto, host_address, service_port))
-    http_sqlmap_crawl_cmd = "sqlmap --random-agent --batch --smart --crawl=4 --threads=3 --level=4 --risk=2 -u http://%s:%s/ | tee %s/pya-sqlmap-crawl-output-%s-%s-http.txt" % (host_address, service_port, directory_name, host_address, service_port)
-    os.system(http_sqlmap_crawl_cmd)
+    for row in c.execute("SELECT DISTINCT ip FROM scandata WHERE protocol = 'tcp';"):
+      host_address = row[0]
+      service_ports = ''
 
-    print("\n\n[*] Running sqlmap_forms on %s://%s:%s\n" % (service_proto, host_address, service_port))
-    http_sqlmap_forms_cmd = "sqlmap --random-agent --batch --smart --crawl=4  --forms --threads=3 --level=4 --risk=2 -u http://%s:%s/ | tee %s/pya-sqlmap-forms-output-%s-%s-http.txt" % (host_address, service_port, directory_name, host_address, service_port)
-    os.system(http_sqlmap_forms_cmd)
+      for port in c.execute("SELECT DISTINCT port FROM scandata WHERE protocol = 'tcp' AND ip = '%s';" % host_address):
+        service_ports = service_ports + str(port[0]) + ","
+      service_ports = service_ports[:-1]
 
-  # All scans for encrypted webservers (SSL/TLS).
-  for row in c.execute("SELECT DISTINCT * FROM scandata WHERE protocol = 'tcp' AND (service LIKE '%https%' OR service LIKE '%ssl%')"):
-    host_address = row[1]
-    service_port = row[2]
-    service_proto = row[5]
+      print("\n\n[*] Running %s on nmap://%s:%s\n" % (pyweb_command, host_address, service_ports))
+      nmap_pyweb_cmd = "python3 pyweb_automate.py %s nse %s %s" % (pyweb_command, service_ports, host_address)
+      print(nmap_pyweb_cmd)
 
-    print("\n\n[*] Running sqlmap_crawl on %s://%s:%s\n" % (service_proto, host_address, service_port))
-    http_sqlmap_crawl_cmd = "sqlmap --random-agent --batch --smart --crawl=4 --threads=3 --level=4 --risk=2 -u https://%s:%s/ | tee %s/pya-sqlmap-crawl-output-%s-%s-https.txt" % (host_address, service_port, directory_name, host_address, service_port)
-    os.system(http_sqlmap_crawl_cmd)
+  elif pyweb_command == "whatweb" or pyweb_command == "nikto" or pyweb_command == "wpscan" or pyweb_command == "sqlmap_crawl" or pyweb_command == "sqlmap_forms" or pyweb_command == "wascan" or pyweb_command == "jexboss" or pyweb_command == "struts_pwn" or pyweb_command == "jetleak" or pyweb_command == "dirb" or pyweb_command == "sslyze":
+    check_for_database()
+    c = connect_to_database()
 
-    print("\n\n[*] Running sqlmap_forms on %s://%s:%s\n" % (service_proto, host_address, service_port))
-    http_sqlmap_forms_cmd = "sqlmap --random-agent --batch --smart --crawl=4  --forms --threads=3 --level=4 --risk=2 -u https://%s:%s/ | tee %s/pya-sqlmap-forms-output-%s-%s-https.txt" % (host_address, service_port, directory_name, host_address, service_port)
-    os.system(http_sqlmap_forms_cmd)
+    # pyweb_automate scans for non-encrypted webservers (HTTP).
+    for row in c.execute("SELECT DISTINCT * FROM scandata WHERE protocol = 'tcp' AND (service = 'http' OR service = 'www' OR service = 'http-proxy')"):
+      host_address = row[1]
+      service_port = row[2]
+      service_proto = row[5]
+
+      print("\n\n[*] Running %s on %s://%s:%s\n" % (pyweb_command, service_proto, host_address, service_port))
+      http_pyweb_cmd = "python3 pyweb_automate.py %s http %s %s" % (pyweb_command, service_port, host_address)
+      os.system(http_pyweb_cmd)
+
+    # pyweb_automate scans for encrypted webservers (SSL/TLS).
+    for row in c.execute("SELECT DISTINCT * FROM scandata WHERE protocol = 'tcp' AND (service LIKE '%https%' OR service LIKE '%ssl%')"):
+      host_address = row[1]
+      service_port = row[2]
+      service_proto = row[5]
+
+      print("\n\n[*] Running %s on %s://%s:%s\n" % (pyweb_command, service_proto, host_address, service_port))
+      https_pyweb_cmd = "python3 pyweb_automate.py %s https %s %s" % (pyweb_command, service_port, host_address) 
+      os.system(https_pyweb_cmd)
+
 
 elif sys.argv[1] == "vulnscan":
   check_for_database()
