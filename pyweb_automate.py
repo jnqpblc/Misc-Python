@@ -22,7 +22,7 @@ if len(sys.argv) < 2:
   sys.exit(usage)
 
 elif sys.argv[1] == "help":
-  print("\n[+] Supported commands:\n")
+  print("\n[+] %s Supported commands:\n" % sys.argv[0])
   file = open(sys.argv[0], "r")
   for line in file:
     if "def run_" in line:
@@ -43,7 +43,7 @@ elif sys.argv[1] == "show":
 elif len(sys.argv) < 4:
   sys.exit(usage)
 
-directory_name = "AMA"
+directory_name = "output"
 option = sys.argv[1]
 service_proto = sys.argv[2]
 service_port = sys.argv[3]
@@ -53,7 +53,7 @@ if len(sys.argv) == 6:
   web_root = sys.argv[5]
 user = os.environ.get('USER')
 wpscan_api = "{YOUR_API_KEY}"
-nikto_config = "/etc/nikto/config.txt"
+nikto_config = "/usr/share/nikto/nikto.conf"
 targets = []
 
 #sys.stdout = open(directory_name + '/' + sys.argv[0] + ".log", 'w')
@@ -87,7 +87,7 @@ def run_whatweb(service_proto, host_address, service_port, web_root):
     os.system(cmd)
 
 def run_nikto(service_proto, host_address, service_port, web_root):
-    if not os.path.exists(nikto_config): sys.exit("%s does not exist. Please modify the nikto_config variable.")
+    if not os.path.exists(nikto_config): sys.exit("%s does not exist. Please modify the nikto_config variable." % nikto_config)
     print("\n\n[*] Running nikto on %s://%s:%s%s" % (service_proto, host_address, service_port, web_root))
     cmd = "nikto -config %s -timeout 2 -nossl -host %s://%s:%s%s -F xml -output %s/pya-nikto-output-%s-%s-%s.xml | tee %s/pya-nikto-output-%s-%s-%s.txt" % (nikto_config, service_proto, host_address, service_port, web_root, directory_name, host_address, service_port,service_proto, directory_name, host_address, service_port, service_proto)
     print("%s@%s:~$ %s" % (user, get_public_ip(), cmd))
@@ -179,7 +179,7 @@ def run_nmap_brute(service_proto, host_address, service_port, web_root):
     if not os.path.exists("unix_users.txt"): os.system("wget --quiet https://raw.githubusercontent.com/rapid7/metasploit-framework/master/data/wordlists/unix_users.txt")
     if not os.path.exists("unix_passwords.txt"): os.system("wget --quiet https://raw.githubusercontent.com/rapid7/metasploit-framework/master/data/wordlists/unix_passwords.txt")
     print("\n\n[*] Running nmap +brute on %s://%s:%s%s" % (service_proto, host_address, service_port, web_root))
-    cmd = "nmap -p %s --script brute --script-args userdb=unix_users.txt,passdb=unix_passwords.txt -oA %s/pya-nmap-brute-output-%s-%s-%s %s" % (service_port, directory_name, host_address, service_port, service_proto, host_address)
+    cmd = "nmap -n -Pn -sTV -p %s --script brute --script-args userdb=unix_users.txt,passdb=unix_passwords.txt -oA %s/pya-nmap-brute-output-%s-%s-%s %s" % (service_port, directory_name, host_address, service_port, service_proto, host_address)
     print("%s@%s:~$ %s" % (user, get_public_ip(), cmd))
     os.system(cmd)
 
