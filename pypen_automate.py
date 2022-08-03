@@ -239,7 +239,7 @@ elif sys.argv[1] == "nmapsvc":
     sys.exit('\nUsage: %s nmapsvc {mode|import|scan|db} {rate} {file_name|[not for database]} {ports|[only for scan]}\n' % sys.argv[0])
   scan_mode = sys.argv[2]
   min_rate = sys.argv[3]
-  if not os.path.exists("sqlite-output.nse"): os.system("wget --quiet https://raw.githubusercontent.com/exitnode/nmap-sqlite-output/master/sqlite-output.nse")
+  if not os.path.exists("sqlite-output.nse"): os.system("wget --quiet https://codeberg.org/mclemens/nmap-sqlite-output/raw/branch/master/sqlite-output.nse")
   if scan_mode == "import":
     if len(sys.argv) < 5:
       sys.exit('\nUsage: %s nmapsvc import {rate} {file_name}}\n' % sys.argv[0])
