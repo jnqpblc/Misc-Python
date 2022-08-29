@@ -1,2 +1,2 @@
 # Misc-Python
-Miscellaneous Python scripts for red team activities
+Miscellaneous Python scripts for red team or general pen-testing activities
