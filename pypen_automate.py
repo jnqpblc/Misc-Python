@@ -106,14 +106,13 @@ elif sys.argv[1] == "help":
   os.system('python3 pyweb_automate.py help')
   sys.exit()
 
-
 elif sys.argv[1] == "show":
   if len(sys.argv) < 3:
     sys.exit(usage)
   elif not os.path.exists(sys.argv[2]):
     sys.exit("\n[!] The supplied directory does not exist.\n")
   else:
-    os.system("find %s \( -name \*.txt -o -name \*.nmap \) -exec cat {} \; | egrep -v 'FAILED:|ERROR:| Couldn.t |: false| Can.t |Host is up|^SF-|^SF:' | less -R" % sys.argv[2])
+    os.system("find %s \( -name \*.txt -o -name \*.nmap \) -exec cat {} \; | egrep -v 'FAILED:|ERROR:| Couldn.t |: false| Can.t |Host is up|^SF-|^SF:|CODE:302\|SIZE:0|WARNING:|Other Scan Mode|Use mode ' | less -R" % sys.argv[2])
     sys.exit()
 
 
@@ -121,7 +120,10 @@ elif sys.argv[1] == "print":
   check_for_database()
   c = connect_to_database()
   if len(sys.argv) == 3:
-    if sys.argv[2] == "stats":
+    if sys.argv[2] == "csv":
+      for row in c.execute("SELECT DISTINCT ip, port, protocol, service, version FROM scandata WHERE protocol = 'tcp' AND state = 'open'"):
+        print("%s, %s, %s, %s, %s" % (row[0], row[1], row[2], row[3], row[4]))
+    elif sys.argv[2] == "stats":
       port_count = ''
       for row in c.execute("SELECT COUNT(port) FROM scandata WHERE protocol = 'tcp' and state = 'open';"):
         port_count = row
@@ -239,7 +241,7 @@ elif sys.argv[1] == "nmapsvc":
     sys.exit('\nUsage: %s nmapsvc {mode|import|scan|db} {rate} {file_name|[not for database]} {ports|[only for scan]}\n' % sys.argv[0])
   scan_mode = sys.argv[2]
   min_rate = sys.argv[3]
-  if not os.path.exists("sqlite-output.nse"): os.system("wget --quiet https://codeberg.org/mclemens/nmap-sqlite-output/raw/branch/master/sqlite-output.nse")
+  if not os.path.exists("sqlite-output.nse"): os.system("wget --quiet https://raw.githubusercontent.com/exitnode/nmap-sqlite-output/master/sqlite-output.nse")
   if scan_mode == "import":
     if len(sys.argv) < 5:
       sys.exit('\nUsage: %s nmapsvc import {rate} {file_name}}\n' % sys.argv[0])
@@ -258,7 +260,7 @@ elif sys.argv[1] == "nmapsvc":
     print("\n\n[*] Running an nmapsvc version scan on all entries in %s" % (targets_file))
     nmapsvc_tcp_cmd = "sudo nmap -Pn -n -sSV -p %s --open --version-all --min-parallelism 32 -iL %s --min-rate %s --script sqlite-output --script-args dbname=%s,dbtable=scandata -oA %s/pya-nmap-tcp-output" % (ports, targets_file, min_rate, sqlite_database_file, directory_name)
     os.system(nmapsvc_tcp_cmd)
-    nmapsvc_udp_cmd = "sudo nmap -Pn -n -sU --top-ports 30 --open --version-all --min-parallelism 32 -iL %s --min-rate %s --script sqlite-output --script-args dbname=%s,dbtable=scandata -oA %s/pya-nmap-udp-output" % (targets_file, min_rate, sqlite_database_file, directory_name)
+    nmapsvc_udp_cmd = "sudo nmap -Pn -n -sUV --top-ports 30 --open --version-all --min-parallelism 32 -iL %s --min-rate %s --script sqlite-output --script-args dbname=%s,dbtable=scandata -oA %s/pya-nmap-udp-output" % (targets_file, min_rate, sqlite_database_file, directory_name)
     os.system(nmapsvc_udp_cmd)
     remove_filtered_udp_cmd="sqlite3 %s \"DELETE FROM scandata WHERE protocol = 'udp' AND state like '%%filtered';\"" % (sqlite_database_file)
     os.system(remove_filtered_udp_cmd)
@@ -303,10 +305,16 @@ elif sys.argv[1] == "amass":
   name_server = sys.argv[2];
   wordlist_file = sys.argv[3]
   target_option = sys.argv[4];
+  if not os.path.exists("amass-config.ini"): os.system("wget --quiet -O amass-config.ini https://raw.githubusercontent.com/OWASP/Amass/master/examples/config.ini")
   if not os.path.exists(wordlist_file):
     sys.exit('\n[!] The %s does not exist.\n' % wordlist_file)
-  amass_cmd = "amass -active -whois -brute -r %s -v -o %s/pya-amass-output.txt -w %s -d %s" % (name_server, directory_name, wordlist_file, target_option)
-  os.system(amass_cmd)
+  amass_intel_cmd = "/usr/bin/amass intel -config amass-config.ini -active -whois -r %s -o %s/pya-amass-intel-output-%s.txt -d %s" % (name_server, directory_name, target_option, target_option)
+  print("[*] Running amass intel for %s\n# %s" % (target_option, amass_intel_cmd))
+  os.system(amass_intel_cmd)
+  amass_enum_cmd = "/usr/bin/amass enum -config amass-config.ini -brute -r %s -o %s/pya-amass-enum-output-%s.txt -w %s -d %s" % (name_server, directory_name, target_option, wordlist_file, target_option)
+  print("[*] Running amass enum for %s\n# %s" % (target_option, amass_enum_cmd))
+  print(amass_enum_cmd)
+  os.system(amass_enum_cmd)
 
 
 elif sys.argv[1] == "sublist3r":
@@ -334,21 +342,67 @@ elif sys.argv[1] == "aquatone":
   os.system('ls -lh output/aquatone.zip')
 
 
+elif sys.argv[1] == "nselookup":
+  if len(sys.argv) < 3:
+    sys.exit('\nUsage: %s nselookup {script_search_term}\n' % sys.argv[0])
+  script_search_term = sys.argv[2]
+  nse_search_cmd="echo; ls -1 /usr/share/nmap/scripts |grep -i \"%s\"" % (script_search_term)
+  os.system(nse_search_cmd)
+
+
 elif sys.argv[1] == "nmapnse":
+  if len(sys.argv) < 4:
+    sys.exit('\nUsage: %s nmapnse {script_search_term} {service_search_term}\n' % sys.argv[0])
+  script_search_term = sys.argv[2]
+  service_search_term = sys.argv[3]
   check_for_database()
   c = connect_to_database()
   host_addresses = ''
   service_ports =''
-  for ip in c.execute("SELECT DISTINCT ip FROM scandata WHERE protocol = 'tcp'"):
-    host_addresses = host_addresses + str(ip[0]) + " "
-  host_addresses = host_addresses[:-1]
-  for port in c.execute("SELECT DISTINCT port FROM scandata WHERE protocol = 'tcp'"):
-    service_ports = service_ports + str(port[0]) + ","
-  service_ports = service_ports[:-1]
-  print("\n\n[*] Running NSE scripts on %s on all hosts\n" % (service_ports))
-  nmap_nse_cmd = "nmap -n -Pn -sT -p %s --open --script default,vuln,auth,intrusive,brute --script-args http.useragent='Mozilla/5.0 (compatible; Yahoo! Slurp; http://help.yahoo.com/help/us/ysearch/slurp)' --script-timeout=3h %s -oA %s/pya-nmap-nse-output" % (service_ports, host_addresses, directory_name)
+  if service_search_term == 'all':
+    for ip in c.execute("SELECT DISTINCT ip FROM scandata WHERE protocol = 'tcp'"):
+      host_addresses = host_addresses + str(ip[0]) + " "
+    host_addresses = host_addresses[:-1]
+    for port in c.execute("SELECT DISTINCT port FROM scandata WHERE protocol = 'tcp'"):
+      service_ports = service_ports + str(port[0]) + ","
+    service_ports = service_ports[:-1]
+    print("\n\n[*] Running NSE scripts on %s on all hosts\n" % (service_ports))
+    nmap_nse_cmd = "nmap -n -Pn -sT -p %s --open --script +%s* --script-args unpwdb.timelimit=1h,http.useragent='Mozilla/5.0 (compatible; Yahoo! Slurp; http://help.yahoo.com/help/us/ysearch/slurp)' --script-timeout=1h %s -oA %s/pya-nmap-%s-output" % (service_ports, script_search_term, host_addresses, directory_name, script_search_term)
+  else:
+    print("SELECT DISTINCT ip FROM scandata WHERE protocol = 'tcp' AND service LIKE '%" + service_search_term + "%'")
+    for ip in c.execute("SELECT DISTINCT ip FROM scandata WHERE protocol = 'tcp' AND version LIKE '%" + service_search_term + "%'"):
+      host_addresses = host_addresses + str(ip[0]) + " "
+    host_addresses = host_addresses[:-1]
+    for port in c.execute("SELECT DISTINCT port FROM scandata WHERE protocol = 'tcp' AND version LIKE '%" + service_search_term + "%'"):
+      service_ports = service_ports + str(port[0]) + ","
+    service_ports = service_ports[:-1]
+    print("\n\n[*] Running NSE scripts on %s on all hosts\n" % (service_ports))
+    nmap_nse_cmd = "nmap -n -Pn -sT -p %s --open --script +%s* --script-args unpwdb.timelimit=1h,http.useragent='Mozilla/5.0 (compatible; Yahoo! Slurp; http://help.yahoo.com/help/us/ysearch/slurp)' --script-timeout=1h %s -oA %s/pya-nmap-%s-%s-output" % (service_ports, script_search_term, host_addresses, directory_name, script_search_term, service_search_term.replace(' ', '_'))
   print(nmap_nse_cmd)
   os.system(nmap_nse_cmd)
+
+
+elif sys.argv[1] == "msf":
+  if len(sys.argv) < 4:
+    sys.exit('\nUsage: %s msf {module_search_term} {service_search_term}\n' % sys.argv[0])
+  module_search_term = sys.argv[2]
+  service_search_term = sys.argv[3]
+  check_for_database()
+  c = connect_to_database()
+  host_addresses = ''
+  service_ports =''
+  for ip in c.execute("SELECT DISTINCT ip FROM scandata WHERE protocol = 'tcp' AND version LIKE '%" + service_search_term + "%'"):
+    host_addresses = host_addresses + str(ip[0]) + " "
+  host_addresses = host_addresses[:-1]
+  for port in c.execute("SELECT DISTINCT port FROM scandata WHERE protocol = 'tcp' AND version LIKE '%" + service_search_term + "%'"):
+    service_ports = service_ports + str(port[0]) + " "
+  service_ports = service_ports[:-1]
+  print("\n\n[*] Running all %s modules for %s on %s hosts\n" % (module_search_term, service_ports, host_addresses))
+  msf_search_cmd = "msfconsole -nqx \"search -o mods.txt %s; exit;\"" % module_search_term
+  os.system(msf_search_cmd)
+  msf_cmd = "msfconsole -nqx \"setg RHOSTS %s; setg RPORTS %s; resource msf_csv_export_autrun.rc; exit\" |tee %s/pya-msf-%s-%s-output.txt" % (host_addresses, service_ports, directory_name, module_search_term.replace('/', ''), service_search_term.replace(' ', '_'))
+  print(msf_cmd)
+  os.system(msf_cmd)
 
 
 elif sys.argv[1] == "log4shell":
@@ -409,10 +463,6 @@ elif sys.argv[1] == "log4shell":
   else:
     sys.exit('\nUsage: %s log4shell {all, ftp, http, http-spider, http-brute, imap, sip, smtp, ssh}\n' % sys.argv[0])
   os.chdir('../')
-
-
-
-
 
 
 elif sys.argv[1] == "pyweb":
