@@ -25,12 +25,15 @@ ports = ports_option.read().split(',')
 src_port = random.randint(1024,65535)
 seq = random.randint(1000000000,4000000000)
 
+tmp_array = []
 targets_array = []
 
 for targets_line in targets_file:
-  for ip in IPNetwork(targets_line):
-    for port in ports:
-      targets_array.append("%s:%s" % (ip, port))
+  tmp_array.append(IPNetwork(targets_line))
+
+for port in ports:
+  for ip in tmp_array:
+    targets_array.append("%s:%s" % (ip, port))
 
 random.shuffle(targets_array)
 
