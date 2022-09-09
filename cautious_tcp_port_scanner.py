@@ -9,7 +9,7 @@ if len(sys.argv) < 4:
 
 import socket, random, time
 from scapy.all import *
-from netaddr import *
+from netaddr import IPNetwork
 from datetime import datetime
 
 def get_src_ip():
@@ -24,16 +24,13 @@ ports_option = open(sys.argv[3], "r")
 ports = ports_option.read().split(',')
 src_port = random.randint(1024,65535)
 seq = random.randint(1000000000,4000000000)
-
-tmp_array = []
+random.shuffle(ports)
 targets_array = []
 
 for targets_line in targets_file:
-  tmp_array.append(IPNetwork(targets_line))
-
-for port in ports:
-  for ip in tmp_array:
-    targets_array.append("%s:%s" % (ip, port))
+  for ip in IPNetwork(targets_line):
+    for port in ports:
+      targets_array.append("%s:%s" % (ip, port))
 
 random.shuffle(targets_array)
 
