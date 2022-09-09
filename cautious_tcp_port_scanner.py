@@ -30,9 +30,8 @@ random.shuffle(targets_array)
 for line in targets_array:
   dst_ip = str(line.split(':')[0])
   dst_port = int(line.split(':')[1])
-  #print(dst_ip)
-  #print(dst_port)
-  syn_packet=IP(src=src_ip,dst=dst_ip)/TCP(sport=src_port,dport=dst_port,flags='S',seq=seq, window=512)
-  resp = sr1(syn_packet, verbose=False)
-  print(resp.sprintf("len=%IP.len% ip=%IP.src% ttl=%IP.ttl% %IP.frag% id=%IP.id% sport=" + str(dst_port) + " flags=%TCP.flags% seq=%TCP.seq% win=%TCP.window%"))
+  syn_packet=IP(src=src_ip, dst=dst_ip)/TCP(sport=src_port, dport=dst_port, flags='S', seq=seq, window=512)
+  resp = sr1(syn_packet, verbose=False, retry=0, timeout=1)
+  if resp is not None:
+    print(resp.sprintf("len=%IP.len% ip=%IP.src% ttl=%IP.ttl% %IP.frag% id=%IP.id% sport=" + str(dst_port) + " flags=%TCP.flags% seq=%TCP.seq% win=%TCP.window%"))
   time.sleep(delay)
