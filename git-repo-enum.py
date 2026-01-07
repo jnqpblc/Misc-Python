@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 print '''
 [+] by jnqpblc
+# https://www.codestudy.net/blog/listing-all-repositories-served-by-git-daemon/
 '''
 import argparse
 import subprocess
